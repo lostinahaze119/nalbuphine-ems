@@ -158,10 +158,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = `vas-btn ${i === initialScore ? 'active' : ''}`;
-      btn.textContent = i; // Retain number text!
+      btn.textContent = i;
       
       btn.addEventListener('click', () => {
-        // Reset inline backgroundColor on all buttons so color does not persist!
         buttonsContainer.querySelectorAll('.vas-btn').forEach(b => {
           b.classList.remove('active');
           b.style.backgroundColor = ''; 
@@ -336,12 +335,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnSigClear').addEventListener('click', () => activeSignaturePad.clear());
   document.getElementById('btnSigUndo').addEventListener('click', () => activeSignaturePad.undo());
 
-  // Confirm Signature Button Handler (ALLOW SAVING BLANK/EMPTY SIGNATURE)
+  // Confirm Signature Button Handler
   document.getElementById('btnSigSave').addEventListener('click', () => {
     const isPadEmpty = activeSignaturePad.isEmpty();
     
     if (isPadEmpty) {
-      // Empty canvas saved -> restore box to blank state
       if (currentSigningType === 'patient') {
         formData.patientSignature = '';
         resetSignatureBoxUI('patientSigBox', '病患 / 家屬簽名', 'fa-pen-fancy');
@@ -351,7 +349,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       showToast('已確認並恢復為空白簽名狀態');
     } else {
-      // Non-empty signature saved
       const sigDataUrl = activeSignaturePad.toDataURL();
       if (currentSigningType === 'patient') {
         formData.patientSignature = sigDataUrl;
@@ -384,9 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSignatureBoxUI('emtSigBox', defaultEmtSig);
   }
 
-  // =========================================================================
-  // Section Validation Status Badges & Submit Lock Logic
-  // =========================================================================
+  // Section Validation Status Badges
   function setSectionBadge(cardId, badgeId, isValid, label = '') {
     const card = document.getElementById(cardId);
     const badge = document.getElementById(badgeId);
@@ -423,7 +418,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setSectionBadge('cardSec6', 'statusBadgeSec6', sec6Valid, sec6Valid ? '完成' : '必填');
     setSectionBadge('cardSec7', 'statusBadgeSec7', sec7Valid, sec7Valid ? '完成' : '完成');
 
-    // Section 8 Badge Labeling (shows 簽名未完成 when any signature is blank)
     let sigBadgeLabel = '簽名完成';
     if (!formData.patientSignature && !formData.emtSignature) {
       sigBadgeLabel = '簽名未完成 (雙方未簽)';
@@ -486,7 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // =========================================================================
-  // History Records & Overwrite Edit Mode Handler
+  // History Records & Re-Sync Handler
   // =========================================================================
   document.getElementById('btnHistory').addEventListener('click', () => {
     renderHistoryTable();
@@ -501,25 +495,50 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    container.innerHTML = records.map(r => `
-      <div style="border:1.5px solid #E2E8F0; padding:16px; border-radius:14px; margin-bottom:14px; background:#FFF; box-shadow:0 2px 6px rgba(0,0,0,0.02);">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-          <strong style="font-size:16px; color:var(--teal-dark);">單號：${r.data.formNo || '無單號'}</strong>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-size:12px; padding:3px 10px; border-radius:12px; font-weight:700; ${r.status === 'synced' ? 'background:#D1FAE5; color:#065F46;' : 'background:#FEF3C7; color:#92400E;'}">
-              ${r.status === 'synced' ? '已同步雲端' : '離線暫存'}
-            </span>
-            <button type="button" class="btn-inline btn-edit-record" data-id="${r.id}" style="height:32px; padding:0 12px; font-size:13px; background:var(--teal-dark);">
-              <i class="fas fa-edit"></i> 修改此筆紀錄
-            </button>
+    const hasPending = records.some(r => r.status === 'pending');
+
+    container.innerHTML = `
+      ${hasPending ? `
+        <div style="margin-bottom:12px; padding:12px; background:#FEF3C7; border:1px solid #FCD34D; border-radius:10px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:13px; color:#92400E; font-weight:600;"><i class="fas fa-exclamation-triangle"></i> 尚有離線紀錄等待傳輸至 Google 雲端</span>
+          <button type="button" id="btnSyncAllPending" class="btn-inline" style="height:32px; padding:0 12px; font-size:12px; background:#D97706;">
+            <i class="fas fa-sync-alt"></i> 一鍵同步補傳
+          </button>
+        </div>
+      ` : ''}
+      ${records.map(r => `
+        <div style="border:1.5px solid #E2E8F0; padding:16px; border-radius:14px; margin-bottom:14px; background:#FFF; box-shadow:0 2px 6px rgba(0,0,0,0.02);">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <strong style="font-size:16px; color:var(--teal-dark);">單號：${r.data.formNo || '無單號'}</strong>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:12px; padding:3px 10px; border-radius:12px; font-weight:700; ${r.status === 'synced' ? 'background:#D1FAE5; color:#065F46;' : 'background:#FEF3C7; color:#92400E;'}">
+                ${r.status === 'synced' ? '已同步雲端' : '離線暫存'}
+              </span>
+              <button type="button" class="btn-inline btn-edit-record" data-id="${r.id}" style="height:32px; padding:0 12px; font-size:13px; background:var(--teal-dark);">
+                <i class="fas fa-edit"></i> 修改此筆紀錄
+              </button>
+            </div>
           </div>
+          <div style="font-size:13px; color:#64748B; margin-top:8px; line-height:1.6;">
+            時間：${r.timestamp} ｜ 性別：${r.data.gender} ｜ 年齡：${r.data.age || '未填'}歲 ｜ 給藥前/後 VAS：${r.data.vasPre} ➔ ${r.data.vasPost}
+          </div>
+          ${r.driveUrl ? `<a href="${r.driveUrl}" target="_blank" style="font-size:13px; color:#0284C7; margin-top:8px; display:inline-block; font-weight:600;"><i class="fas fa-external-link-alt"></i> 開啟 Google Drive PDF</a>` : ''}
         </div>
-        <div style="font-size:13px; color:#64748B; margin-top:8px; line-height:1.6;">
-          時間：${r.timestamp} ｜ 性別：${r.data.gender} ｜ 年齡：${r.data.age || '未填'}歲 ｜ 給藥前/後 VAS：${r.data.vasPre} ➔ ${r.data.vasPost}
-        </div>
-        ${r.driveUrl ? `<a href="${r.driveUrl}" target="_blank" style="font-size:13px; color:#0284C7; margin-top:8px; display:inline-block; font-weight:600;"><i class="fas fa-external-link-alt"></i> 開啟 Google Drive PDF</a>` : ''}
-      </div>
-    `).join('');
+      `).join('')}
+    `;
+
+    // Bind Sync All Pending Button
+    const btnSyncAll = document.getElementById('btnSyncAllPending');
+    if (btnSyncAll) {
+      btnSyncAll.addEventListener('click', async () => {
+        btnSyncAll.disabled = true;
+        btnSyncAll.innerHTML = `<i class="fas fa-spinner fa-spin"></i> 上傳中...`;
+        showToast('正在嘗試補傳離線紀錄至 Google 雲端...');
+        await syncManager.syncPendingRecords();
+        renderHistoryTable();
+        showToast('補傳完成！請檢查雲端連結');
+      });
+    }
 
     // Bind Edit Record Buttons
     container.querySelectorAll('.btn-edit-record').forEach(btn => {
