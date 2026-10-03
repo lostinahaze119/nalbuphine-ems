@@ -29,7 +29,7 @@ class NalbuphinePdfGenerator {
         padding: 10mm 15mm;
         background: #ffffff;
         color: #000000;
-        font-family: 'DFKai-SB', 'PMingLiU', 'Noto Serif TC', 'SimSun', serif;
+        font-family: 'DFKai-SB', 'PMingLiU', 'Noto Sans TC', 'Noto Serif TC', 'Microsoft JhengHei', sans-serif, serif;
         font-size: 11pt;
         line-height: 1.4;
         box-sizing: border-box;
@@ -135,32 +135,56 @@ class NalbuphinePdfGenerator {
   }
 
   static async downloadPdf(formData) {
-    const element = document.createElement('div');
-    element.innerHTML = this.generateHTML(formData);
-    document.body.appendChild(element);
+    const prevScrollX = window.scrollX || window.pageXOffset || 0;
+    const prevScrollY = window.scrollY || window.pageYOffset || 0;
+    window.scrollTo(0, 0);
+
+    const tempWrapper = document.createElement('div');
+    tempWrapper.style.cssText = 'position:absolute; top:0; left:0; width:210mm; z-index:999999; background:#ffffff; color:#000000; opacity:1; pointer-events:none; margin:0; padding:0;';
+    tempWrapper.innerHTML = this.generateHTML(formData);
+    document.body.appendChild(tempWrapper);
+    const elementToCapture = tempWrapper.firstElementChild;
 
     const fileName = this.getMinguoFileName(formData);
 
-    if (window.html2pdf) {
-      const opt = {
-        margin:       [0, 0, 0, 0],
-        filename:     fileName,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false, allowTaint: true },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak:    { mode: 'css' }
-      };
-      await window.html2pdf().set(opt).from(element.firstElementChild).save();
-    } else {
-      window.print();
+    try {
+      if (window.html2pdf) {
+        const opt = {
+          margin:       [0, 0, 0, 0],
+          filename:     fileName,
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { 
+            scale: 2, 
+            useCORS: true, 
+            logging: false, 
+            allowTaint: true,
+            scrollX: 0,
+            scrollY: 0,
+            x: 0,
+            y: 0
+          },
+          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak:    { mode: 'css' }
+        };
+        await window.html2pdf().set(opt).from(elementToCapture).save();
+      } else {
+        window.print();
+      }
+    } finally {
+      if (tempWrapper && tempWrapper.parentNode) {
+        tempWrapper.parentNode.removeChild(tempWrapper);
+      }
+      window.scrollTo(prevScrollX, prevScrollY);
     }
-
-    document.body.removeChild(element);
   }
 
   static async getPdfBase64(formData) {
+    const prevScrollX = window.scrollX || window.pageXOffset || 0;
+    const prevScrollY = window.scrollY || window.pageYOffset || 0;
+    window.scrollTo(0, 0);
+
     const tempWrapper = document.createElement('div');
-    tempWrapper.style.cssText = 'position:fixed; top:0; left:0; width:210mm; height:297mm; z-index:999999; background:#ffffff; color:#000000; opacity:1; pointer-events:none; margin:0; padding:0;';
+    tempWrapper.style.cssText = 'position:absolute; top:0; left:0; width:210mm; z-index:999999; background:#ffffff; color:#000000; opacity:1; pointer-events:none; margin:0; padding:0;';
     tempWrapper.innerHTML = this.generateHTML(formData);
     document.body.appendChild(tempWrapper);
     const elementToCapture = tempWrapper.firstElementChild;
@@ -174,7 +198,7 @@ class NalbuphinePdfGenerator {
       });
     }));
 
-    await new Promise(r => setTimeout(r, 350));
+    await new Promise(r => setTimeout(r, 200));
 
     let base64 = '';
     try {
@@ -184,7 +208,16 @@ class NalbuphinePdfGenerator {
           margin:       [0, 0, 0, 0],
           filename:     fileName,
           image:        { type: 'jpeg', quality: 0.98 },
-          html2canvas:  { scale: 2, useCORS: true, logging: false, allowTaint: true },
+          html2canvas:  { 
+            scale: 2, 
+            useCORS: true, 
+            logging: false, 
+            allowTaint: true,
+            scrollX: 0,
+            scrollY: 0,
+            x: 0,
+            y: 0
+          },
           jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
           pagebreak:    { mode: 'css' }
         };
@@ -198,10 +231,11 @@ class NalbuphinePdfGenerator {
       }
     } catch (e) {
       console.error('Error generating PDF Base64:', e);
-    }
-
-    if (tempWrapper && tempWrapper.parentNode) {
-      tempWrapper.parentNode.removeChild(tempWrapper);
+    } finally {
+      if (tempWrapper && tempWrapper.parentNode) {
+        tempWrapper.parentNode.removeChild(tempWrapper);
+      }
+      window.scrollTo(prevScrollX, prevScrollY);
     }
     
     return base64;
