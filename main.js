@@ -382,14 +382,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const titleElem = document.getElementById('sigModalTitle');
     titleElem.textContent = type === 'patient' ? '病患 / 家屬手寫簽名' : '救護人員手寫簽名';
     
+    // 立刻清空繪圖板，防止殘留上一個對象的簽名軌跡
+    if (activeSignaturePad) activeSignaturePad.clear();
+
     signatureModal.classList.add('open');
     setTimeout(() => {
       activeSignaturePad.resize();
+      activeSignaturePad.clear();
       const existing = type === 'patient' ? formData.patientSignature : formData.emtSignature;
       if (existing) {
         activeSignaturePad.fromDataURL(existing);
-      } else {
-        activeSignaturePad.clear();
       }
     }, 150);
   };
