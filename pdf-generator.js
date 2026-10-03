@@ -159,7 +159,7 @@ class NalbuphinePdfGenerator {
 
   static async getPdfBase64(formData) {
     const tempWrapper = document.createElement('div');
-    tempWrapper.style.cssText = 'position:fixed; top:0; left:0; width:190mm; z-index:99999; background:#ffffff; opacity:1;';
+    tempWrapper.style.cssText = 'position:absolute; top:0; left:0; width:190mm; z-index:999999; background:#ffffff; color:#000000; opacity:1; pointer-events:none;';
     tempWrapper.innerHTML = this.generateHTML(formData);
     document.body.appendChild(tempWrapper);
     const elementToCapture = tempWrapper.firstElementChild;
@@ -183,7 +183,7 @@ class NalbuphinePdfGenerator {
           margin:       [2, 2, 2, 2],
           filename:     fileName,
           image:        { type: 'jpeg', quality: 0.98 },
-          html2canvas:  { scale: 2, useCORS: true, logging: false, allowTaint: true },
+          html2canvas:  { scale: 2, useCORS: true, logging: false, allowTaint: true, scrollX: 0, scrollY: 0, x: 0, y: 0 },
           jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
           pagebreak:    { mode: 'css' }
         };
