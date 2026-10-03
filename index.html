@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Nalbuphine 止痛評估電子化系統 (EMS Clinical Tablet App)</title>
+  
+  <!-- FontAwesome Icons & Google Fonts -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  
+  <!-- html2pdf.js CDN for PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <!-- App Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="brand-container">
+      <span class="brand-badge">EMS CLINICAL</span>
+      <h1 class="brand-title"><i class="fas fa-notes-medical" style="color: #5EEAD4;"></i> Nalbuphine 止痛評估表</h1>
+    </div>
+    
+    <div class="header-actions">
+      <div class="status-indicator">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">連線中...</span>
+      </div>
+      <button type="button" class="btn-icon" id="btnHistory" title="歷史紀錄">
+        <i class="fas fa-folder-open"></i> 紀錄
+      </button>
+      <button type="button" class="btn-icon" id="btnSettings" title="Google 雲端設定">
+        <i class="fas fa-sliders-h"></i> 設定
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Form Container -->
+  <main class="main-container">
+    <form id="nalbuphineForm" autocomplete="off">
+      
+      <!-- Section 1: 給藥紀錄 & 出勤號碼 -->
+      <section class="form-card" id="cardSec1">
+        <h2 class="card-title">
+          <span class="icon-box"><i class="fas fa-calendar-alt"></i></span>
+          給藥紀錄與表單資訊
+          <span class="section-status-badge invalid" id="statusBadgeSec1"><i class="fas fa-exclamation-circle"></i> 必填</span>
+        </h2>
+        
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">給藥日期與時間</label>
+            <div class="input-with-action">
+              <input type="date" id="inputDate" class="form-control" style="flex: 1.2;" required />
+              <input type="time" id="inputTime" class="form-control" style="flex: 1;" required />
+              <button type="button" id="btnSetNow" class="btn-inline" title="帶入現在時間">
+                <i class="fas fa-clock"></i> 現在
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">救護紀錄表單號 <span style="color:#EF4444;">*</span></label>
+            <input type="text" id="inputFormNo" class="form-control" placeholder="例：11403250123" required />
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 2: 病患基本資料 -->
+      <section class="form-card" id="cardSec2">
+        <h2 class="card-title">
+          <span class="icon-box"><i class="fas fa-user-injured"></i></span>
+          病患基本資料
+          <span class="section-status-badge invalid" id="statusBadgeSec2"><i class="fas fa-exclamation-circle"></i> 必填</span>
+        </h2>
+        
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">性別</label>
+            <div class="btn-toggle-group" id="genderGroup">
+              <button type="button" class="btn-toggle-option active" data-value="男"><i class="fas fa-mars"></i> 男</button>
+              <button type="button" class="btn-toggle-option" data-value="女"><i class="fas fa-venus"></i> 女</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">年齡 (歲) <span style="color:#EF4444;">*</span></label>
+            <input type="number" id="inputAge" class="form-control" placeholder="請輸入年齡" min="0" max="120" required />
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3: 適用條件 -->
+      <section class="form-card" id="cardSec3">
+        <h2 class="card-title">
+          <span class="icon-box"><i class="fas fa-clipboard-check"></i></span>
+          適用條件 <span style="font-size:13px; color:var(--slate-muted); font-weight:normal;">(至少勾選 1 項)</span>
+          <span class="section-status-badge invalid" id="statusBadgeSec3"><i class="fas fa-exclamation-circle"></i> 必填</span>
+        </h2>
+
+        <div class="checkbox-card-grid">
+          <label class="checkbox-card condition-card">
+            <input type="checkbox" value="接受同步整流或經皮體外心律調節器(TCP)" />
+            <span class="checkbox-card-text">接受同步整流或經皮體外心律調節器 (TCP)</span>
+          </label>
+          <label class="checkbox-card condition-card">
+            <input type="checkbox" value="肢體夾困，預期短時間(≧20 分鐘)無法脫困" />
+            <span class="checkbox-card-text">肢體夾困，預期短時間 (≧20 分鐘) 無法脫困</span>
+          </label>
+          <label class="checkbox-card condition-card">
+            <input type="checkbox" value="創傷性截肢或不完全截肢" />
+            <span class="checkbox-card-text">創傷性截肢或不完全截肢</span>
+          </label>
+          <label class="checkbox-card condition-card">
+            <input type="checkbox" value="外傷後，肢體明顯變形疑似骨折" />
+            <span class="checkbox-card-text">外傷後，肢體明顯變形疑似骨折</span>
+          </label>
+          <label class="checkbox-card condition-card danger-card selected">
+            <input type="checkbox" value="VAS 疼痛指數≧6 分" checked />
+            <span class="checkbox-card-text" style="color:var(--vas-severe);">VAS 疼痛指數 ≧ 6 分</span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Section 4: 給藥劑量 / 途徑 -->
+      <section class="form-card" id="cardSec4">
+        <h2 class="card-title">
+          <span class="icon-box"><i class="fas fa-syringe"></i></span>
+          給藥劑量 / 途徑
+          <span class="section-status-badge valid" id="statusBadgeSec4"><i class="fas fa-check-circle"></i> 完成</span>
+        </h2>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">給藥劑量 (mg) <span style="color:#EF4444;">*</span></label>
+            <input type="text" id="inputDosage" class="form-control" value="0.5" placeholder="例：0.5 或 10" required />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">給藥途徑</label>
+            <div class="btn-toggle-group" id="routeGroup">
+              <button type="button" class="btn-toggle-option active" data-value="IV"><i class="fas fa-vial"></i> IV (靜脈)</button>
+              <button type="button" class="btn-toggle-option" data-value="IM"><i class="fas fa-hand-holding-medical"></i> IM (肌肉)</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 5: 疼痛指數變化 (VAS 0 - 10 分) -->
+      <section class="form-card" id="cardSec5">
+        <h2 class="card-title">
+          <span class="icon-box"><i class="fas fa-heart-pulse"></i></span>
+          疼痛指數變化 (VAS 0 － 10 分)
+          <span class="section-status-badge valid" id="statusBadgeSec5"><i class="fas fa-check-circle"></i> 完成</span>
+        </h2>
+
+        <div class="vas-container" id="vasPreContainer">
+          <div class="vas-header">
+            <span class="form-label" style="font-size:15px;">給藥前 VAS 疼痛分數：</span>
+            <div class="vas-score-display">8 分</div>
+          </div>
+          <div class="vas-buttons"></div>
+        </div>
+
+        <div class="vas-container" id="vasPostContainer">
+          <div class="vas-header">
+            <span class="form-label" style="font-size:15px;">給藥後半小時 VAS 疼痛分數：</span>
+            <div class="vas-score-display">3 分</div>
+          </div>
+          <div class="vas-buttons"></div>
+        </div>
+
+        <div style="text-align:center;">
+          <span class="vas-delta-badge" id="vasDeltaBadge"></span>
+        </div>
+      </section>
+
+      <!-- Section 6: 副作用反應 -->
+      <section class="form-card" id="cardSec6">
+        <h2 class="card-title">
+          <span class="icon-box"><i class="fas fa-stethoscope"></i></span>
+          副作用反應 <span style="font-size:13px; color:var(--slate-muted); font-weight:normal;">(可複選)</span>
+          <span class="section-status-badge valid" id="statusBadgeSec6"><i class="fas fa-check-circle"></i> 完成</span>
+        </h2>
+
+        <div class="checkbox-card-grid">
+          <label class="checkbox-card side-effect-card selected">
+            <input type="checkbox" value="無任何副作用" checked />
+            <span class="checkbox-card-text">無任何副作用</span>
+          </label>
+          <label class="checkbox-card side-effect-card">
+            <input type="checkbox" value="鎮靜 / 嗜睡" />
+            <span class="checkbox-card-text">鎮靜 / 嗜睡</span>
+          </label>
+          <label class="checkbox-card side-effect-card">
+            <input type="checkbox" value="頭暈 / 眩暈" />
+            <span class="checkbox-card-text">頭暈 / 眩暈</span>
+          </label>
+          <label class="checkbox-card side-effect-card">
+            <input type="checkbox" value="噁心 / 嘔吐" />
+            <span class="checkbox-card-text">噁心 / 嘔吐</span>
+          </label>
+          <label class="checkbox-card side-effect-card">
+            <input type="checkbox" value="呼吸抑制 (呼吸速率 < 10 次/分)" />
+            <span class="checkbox-card-text">呼吸抑制 (呼吸速率 &lt; 10 次/分)</span>
+          </label>
+          <label class="checkbox-card side-effect-card">
+            <input type="checkbox" value="其他" />
+            <span class="checkbox-card-text">其他</span>
+          </label>
+        </div>
+        <input type="text" id="inputSideEffectOther" class="form-control" style="margin-top:12px; display:none;" placeholder="請說明其他副作用狀況..." />
+      </section>
+
+      <!-- Section 7: 止痛藥物滿意度 -->
+      <section class="form-card" id="cardSec7">
+        <h2 class="card-title">
+          <span class="icon-box"><i class="fas fa-smile"></i></span>
+          對於給予止痛藥物滿意度
+          <span class="section-status-badge valid" id="statusBadgeSec7"><i class="fas fa-check-circle"></i> 完成</span>
+        </h2>
+
+        <div class="satisfaction-grid">
+          <div class="satisfaction-card active" data-value="非常滿意 (5 分)">
+            <span class="emoji">😍</span>
+            <span class="label">非常滿意 (5分)</span>
+          </div>
+          <div class="satisfaction-card" data-value="滿意 (4 分)">
+            <span class="emoji">😊</span>
+            <span class="label">滿意 (4分)</span>
+          </div>
+          <div class="satisfaction-card" data-value="普通 (3 分)">
+            <span class="emoji">😐</span>
+            <span class="label">普通 (3分)</span>
+          </div>
+          <div class="satisfaction-card" data-value="不滿意 (2 分)">
+            <span class="emoji">🙁</span>
+            <span class="label">不滿意 (2分)</span>
+          </div>
+          <div class="satisfaction-card" data-value="非常不滿意 (1 分)">
+            <span class="emoji">😡</span>
+            <span class="label">非常不滿意 (1分)</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 8: 電子手寫簽名 -->
+      <section class="form-card" id="cardSec8">
+        <h2 class="card-title">
+          <span class="icon-box"><i class="fas fa-file-signature"></i></span>
+          電子手寫簽名區
+          <span class="section-status-badge invalid" id="statusBadgeSec8"><i class="fas fa-exclamation-circle"></i> 未簽名</span>
+        </h2>
+
+        <div class="signature-grid">
+          <div class="signature-box-container">
+            <div class="signature-box-header">
+              <label class="form-label">病患 / 家屬簽名 <span style="color:#EF4444;">*</span></label>
+              <button type="button" class="btn-clear-sig" id="btnDeletePatientSig">
+                <i class="fas fa-trash-alt"></i> 清除簽名
+              </button>
+            </div>
+            <div class="signature-box" id="patientSigBox">
+              <div class="signature-prompt">
+                <i class="fas fa-pen-fancy" style="color:var(--teal-main);"></i>
+                <span>點擊此處用手指簽名</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="signature-box-container">
+            <div class="signature-box-header">
+              <label class="form-label">救護人員簽名 <span style="color:#EF4444;">*</span></label>
+              <button type="button" class="btn-clear-sig" id="btnDeleteEmtSig">
+                <i class="fas fa-trash-alt"></i> 清除簽名
+              </button>
+            </div>
+            <div class="signature-box" id="emtSigBox">
+              <div class="signature-prompt">
+                <i class="fas fa-user-nurse" style="color:var(--teal-main);"></i>
+                <span>點擊此處用手指簽名</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="notice-box">
+          <i class="fas fa-leaf"></i>
+          <span>此表單將於送出後自動生成 PDF 歸檔並同步至指定 Google 雲端資料夾</span>
+        </div>
+      </section>
+
+    </form>
+  </main>
+
+  <!-- Sticky Bottom Action Bar -->
+  <footer class="sticky-footer-bar">
+    <div class="footer-btn-group">
+      <div id="editModeBanner" class="edit-mode-banner" style="display:none;">
+        <i class="fas fa-edit"></i> 正在修改紀錄 (單號：<span id="editFormNoText"></span>)
+        <button type="button" id="btnCancelEdit" class="btn-inline" style="height:32px; padding:0 12px; font-size:12px; background:rgba(255,255,255,0.2);">
+          取消修改
+        </button>
+      </div>
+
+      <button type="button" id="btnTriggerPreview" class="btn-primary-large">
+        <i class="fas fa-eye"></i> 預覽表單並確認送出
+      </button>
+    </div>
+  </footer>
+
+  <!-- Modal 1: 預覽畫面 (Pre-submission Preview Modal) -->
+  <div class="modal-overlay" id="previewModal">
+    <div class="modal-content" style="max-width: 800px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fas fa-file-invoice"></i> 出勤評估表送出前預覽</h3>
+        <button type="button" class="btn-close-modal">&times;</button>
+      </div>
+      <div class="modal-body" style="background: #F8FAFC;">
+        <div id="previewFormContainer" style="background:#FFF; padding:20px; border-radius:12px; border:1px solid #E2E8F0; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+          <!-- Dynamic Form Preview Rendered Here -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary-large btn-modal-cancel" style="color:var(--slate-dark); border-color:#CBD5E1;">
+          <i class="fas fa-arrow-left"></i> 返回修改
+        </button>
+        <button type="button" class="btn-primary-large" id="btnConfirmFinalSubmit">
+          <i class="fas fa-cloud-upload-alt"></i> 確認無誤，儲存並傳至雲端
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: 彈出式手指手寫簽名板 (Signature Modal) -->
+  <div class="modal-overlay" id="signatureModal">
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="sigModalTitle"><i class="fas fa-pen-nib"></i> 手指手寫簽名</h3>
+        <button type="button" class="btn-close-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="signature-canvas-container">
+          <canvas id="signatureCanvas" class="signature-canvas"></canvas>
+        </div>
+        <div class="signature-toolbar">
+          <div class="stroke-tools">
+            <span style="font-size:13px; font-weight:bold; color:var(--slate-muted); margin-right:4px;">筆觸:</span>
+            <button type="button" class="stroke-btn active" style="background:#0B2545; color:#FFF;" title="深藍"></button>
+            <button type="button" class="stroke-btn" style="background:#0284C7; color:#FFF;" title="水藍"></button>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn-inline" id="btnSigUndo" style="background:#64748B;"><i class="fas fa-undo"></i> 復原</button>
+            <button type="button" class="btn-inline" id="btnSigClear" style="background:#EF4444;"><i class="fas fa-eraser"></i> 重簽/清除</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary-large btn-modal-cancel" style="color:var(--slate-dark); border-color:#CBD5E1;">取消</button>
+        <button type="button" class="btn-primary-large" id="btnSigSave"><i class="fas fa-check"></i> 確認簽名</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: Google 雲端設定 (Settings Modal) -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fas fa-cloud"></i> Google 雲端自動同步設定</h3>
+        <button type="button" class="btn-close-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Google Apps Script Web App 網址</label>
+          <input type="url" id="gasUrlInput" class="form-control" placeholder="https://script.google.com/macros/s/.../exec" />
+          <span style="font-size:12px; color:var(--slate-muted); margin-top:6px;">
+            請貼上您的 Google Apps Script Web App 部署網址，系統送出時會自動寫入 Google 試算表並將 PDF 存入 Google Drive 資料夾。
+          </span>
+        </div>
+
+        <div style="background:#F0FDFA; padding:16px; border-radius:12px; margin-top:16px; border:1px solid #99F6E4;">
+          <h4 style="font-size:14px; color:var(--teal-dark); margin-bottom:6px;"><i class="fas fa-lightbulb" style="color:#F59E0B;"></i> 首次使用設定說明 (約 1 分鐘)</h4>
+          <ol style="font-size:13px; color:var(--slate-body); padding-left:20px; line-height:1.7;">
+            <li>前往 Google Drive 建立新增「Google Apps Script」專案。</li>
+            <li>複製後端腳本完整貼入編輯器中。</li>
+            <li>部署為「Web 應用程式」，存取權限設定為「任何人」。</li>
+            <li>將產生的 Exec 網址複製貼回上方框中即可！</li>
+          </ol>
+          <button type="button" id="btnViewGasCode" class="btn-inline" style="margin-top:12px; width:100%; background:var(--teal-dark);">
+            <i class="fas fa-code"></i> 檢視並複製一鍵 GAS 後端腳本
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-primary-large" id="btnSaveSettings"><i class="fas fa-save"></i> 儲存設定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 4: 歷史出勤紀錄 (History Modal) -->
+  <div class="modal-overlay" id="historyModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fas fa-folder-open"></i> 本地與雲端評估紀錄</h3>
+        <button type="button" class="btn-close-modal">&times;</button>
+      </div>
+      <div class="modal-body" id="historyListContainer">
+        <!-- Records populated by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 5: GAS 腳本複製 Modal -->
+  <div class="modal-overlay" id="gasCodeModal">
+    <div class="modal-content" style="max-width:750px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fas fa-code"></i> Google Apps Script 後端腳本 (gas_script.gs)</h3>
+        <button type="button" class="btn-close-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <textarea id="gasCodeTextarea" class="form-control" style="height:320px; font-family:monospace; font-size:12px;" readonly>
+/**
+ * Nalbuphine 止痛評估電子化系統 - Google Apps Script (GAS) 後端腳本
+ */
+const FOLDER_NAME = "Nalbuphine 止痛評估表";
+const SPREADSHEET_NAME = "Nalbuphine 止痛評估表紀錄總表";
+
+function doPost(e) {
+  try {
+    const postData = JSON.parse(e.postData.contents);
+    const ss = getOrCreateSpreadsheet(SPREADSHEET_NAME);
+    const sheet = ss.getActiveSheet();
+
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow([
+        "記錄識別碼", "填表時間", "給藥日期", "給藥時間", "救護紀錄表單號", 
+        "性別", "年齡", "適用條件", "給藥劑量(mg)", "給藥途徑", 
+        "給藥前 VAS", "給藥後半小時 VAS", "VAS 改善幅度", "副作用反應", 
+        "其他副作用說明", "給藥滿意度", "病患簽名狀態", "救護人員簽名狀態", "雲端 PDF 檔案連結"
+      ]);
+      sheet.getRange(1, 1, 1, 19).setFontWeight("bold").setBackground("#0D9488").setFontColor("#FFFFFF");
+    }
+
+    const folder = getOrCreateFolder(FOLDER_NAME);
+    let driveFileUrl = "";
+    if (postData.pdfBase64) {
+      const pdfBlob = Utilities.newBlob(
+        Utilities.base64Decode(postData.pdfBase64),
+        "application/pdf",
+        `Nalbuphine評估表_${postData.formNo || postData.recordId}.pdf`
+      );
+      
+      // 如果為修改模式，嘗試覆蓋同名舊檔
+      if (postData.isUpdate && postData.formNo) {
+        const existingFiles = folder.getFilesByName(`Nalbuphine評估表_${postData.formNo}.pdf`);
+        while (existingFiles.hasNext()) {
+          existingFiles.next().setTrashed(true);
+        }
+      }
+      const pdfFile = folder.createFile(pdfBlob);
+      driveFileUrl = pdfFile.getUrl();
+    }
+
+    let vasDeltaStr = "";
+    if (postData.vasPre !== undefined && postData.vasPost !== undefined) {
+      const delta = postData.vasPre - postData.vasPost;
+      vasDeltaStr = `${delta > 0 ? '改善 ' + delta + ' 分' : delta === 0 ? '無變化' : '增加 ' + Math.abs(delta) + ' 分'}`;
+    }
+
+    const rowData = [
+      postData.recordId || "", postData.timestamp || new Date().toLocaleString("zh-TW"),
+      postData.date || "", postData.time || "", postData.formNo || "",
+      postData.gender || "", postData.age || "", postData.conditions || "",
+      postData.dosage || "", postData.route || "",
+      postData.vasPre !== undefined ? postData.vasPre : "",
+      postData.vasPost !== undefined ? postData.vasPost : "",
+      vasDeltaStr, postData.sideEffects || "", postData.sideEffectOther || "",
+      postData.satisfaction || "", postData.patientSignature ? "已簽名" : "未簽名",
+      postData.emtSignature ? "已簽名" : "未簽名", driveFileUrl
+    ];
+
+    // 如果為修改覆蓋模式，尋找舊記錄 ID 進行更新
+    let targetRow = -1;
+    if (postData.isUpdate && postData.recordId) {
+      const data = sheet.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][0] == postData.recordId || data[i][4] == postData.formNo) {
+          targetRow = i + 1;
+          break;
+        }
+      }
+    }
+
+    if (targetRow > 0) {
+      sheet.getRange(targetRow, 1, 1, rowData.length).setValues([rowData]);
+    } else {
+      sheet.appendRow(rowData);
+      targetRow = sheet.getLastRow();
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      result: "success", sheetRow: targetRow, driveUrl: driveFileUrl
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      result: "error", message: error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput("Nalbuphine 止痛評估電子化系統 GAS Webhook 運作正常！");
+}
+
+function getOrCreateFolder(folderName) {
+  const folders = DriveApp.getFoldersByName(folderName);
+  return folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+}
+
+function getOrCreateSpreadsheet(sheetName) {
+  const files = DriveApp.getFilesByName(sheetName);
+  if (files.hasNext()) return SpreadsheetApp.open(files.next());
+  const ss = SpreadsheetApp.create(sheetName);
+  DriveApp.getFileById(ss.getId()).moveTo(getOrCreateFolder(FOLDER_NAME));
+  return ss;
+}
+        </textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-primary-large" id="btnCopyGasCode"><i class="fas fa-copy"></i> 複製腳本程式碼</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript App Modules -->
+  <script src="signature-pad.js"></script>
+  <script src="google-sync.js"></script>
+  <script src="pdf-generator.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
