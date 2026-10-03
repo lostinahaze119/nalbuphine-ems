@@ -138,21 +138,22 @@ class NalbuphinePdfGenerator {
     document.body.removeChild(element);
   }
 
-  static async getPdfBase64(formData) {
-    const wrapper = document.createElement('div');
-    wrapper.style.position = 'absolute';
-    wrapper.style.left = '0';
-    wrapper.style.top = '0';
-    wrapper.style.zIndex = '-9999';
-    wrapper.style.width = '210mm';
-    wrapper.style.background = '#ffffff';
-    wrapper.innerHTML = this.generateHTML(formData);
-    document.body.appendChild(wrapper);
+  static async getPdfBase64(formData, targetElement = null) {
+    let elementToCapture = targetElement;
+    let tempWrapper = null;
 
-    // Wait for signature images to fully render
-    const images = wrapper.querySelectorAll('img');
+    if (!elementToCapture) {
+      tempWrapper = document.createElement('div');
+      tempWrapper.style.cssText = 'position:fixed; top:0; left:0; width:210mm; z-index:99999; background:#ffffff; box-shadow:0 0 20px rgba(0,0,0,0.5);';
+      tempWrapper.innerHTML = this.generateHTML(formData);
+      document.body.appendChild(tempWrapper);
+      elementToCapture = tempWrapper.firstElementChild;
+    }
+
+    // Wait for all signature images inside elementToCapture to fully render
+    const images = elementToCapture.querySelectorAll('img');
     const imagePromises = Array.from(images).map(img => {
-      if (img.complete) return Promise.resolve();
+      if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
       return new Promise(resolve => {
         img.onload = resolve;
         img.onerror = resolve;
@@ -160,8 +161,8 @@ class NalbuphinePdfGenerator {
     });
     await Promise.all(imagePromises);
 
-    // Wait for layout engine to stabilize
-    await new Promise(r => setTimeout(r, 250));
+    // Wait for layout engine
+    await new Promise(r => setTimeout(r, 200));
 
     let base64 = '';
     if (window.html2pdf) {
@@ -169,17 +170,21 @@ class NalbuphinePdfGenerator {
         margin:       [5, 5, 5, 5],
         filename:     'form.pdf',
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false, windowWidth: 1024 },
+        html2canvas:  { scale: 2, useCORS: true, logging: false, allowTaint: true },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
       };
       
-      const pdfDataUri = await window.html2pdf().set(opt).from(wrapper.firstElementChild).outputPdf('datauristring');
+      const pdfDataUri = await window.html2pdf().set(opt).from(elementToCapture).outputPdf('datauristring');
       if (pdfDataUri && pdfDataUri.includes(',')) {
         base64 = pdfDataUri.split(',')[1];
       }
     }
-    document.body.removeChild(wrapper);
+
+    if (tempWrapper && tempWrapper.parentNode) {
+      tempWrapper.parentNode.removeChild(tempWrapper);
+    }
+    
     return base64;
   }
 }

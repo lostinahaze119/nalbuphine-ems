@@ -479,9 +479,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // =========================================================================
-  // History Records & Re-Sync Handler
-  // =========================================================================
+  // History Records
   document.getElementById('btnHistory').addEventListener('click', () => {
     renderHistoryTable();
     historyModal.classList.add('open');
@@ -527,7 +525,6 @@ document.addEventListener('DOMContentLoaded', () => {
       `).join('')}
     `;
 
-    // Bind Sync All Pending Button
     const btnSyncAll = document.getElementById('btnSyncAllPending');
     if (btnSyncAll) {
       btnSyncAll.addEventListener('click', async () => {
@@ -540,7 +537,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Bind Edit Record Buttons
     container.querySelectorAll('.btn-edit-record').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.id;
@@ -557,7 +553,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const data = target.data;
     editingRecordId = recordId;
 
-    // Repopulate Form Inputs
     if (data.date) dateInput.value = data.date;
     if (data.time) timeInput.value = data.time;
     updateDateTimeState();
@@ -571,19 +566,16 @@ document.addEventListener('DOMContentLoaded', () => {
     dosageInput.value = data.dosage || '0.5';
     formData.dosage = data.dosage || '0.5';
 
-    // 性別 Toggle
     formData.gender = data.gender || '男';
     document.querySelectorAll('#genderGroup .btn-toggle-option').forEach(b => {
       b.classList.toggle('active', b.dataset.value === formData.gender);
     });
 
-    // 途徑 Toggle
     formData.route = data.route || 'IV';
     document.querySelectorAll('#routeGroup .btn-toggle-option').forEach(b => {
       b.classList.toggle('active', b.dataset.value === formData.route);
     });
 
-    // 適用條件 Cards
     formData.conditions = data.conditions || [];
     document.querySelectorAll('.condition-card').forEach(card => {
       const cb = card.querySelector('input[type="checkbox"]');
@@ -591,14 +583,12 @@ document.addEventListener('DOMContentLoaded', () => {
       card.classList.toggle('selected', cb.checked);
     });
 
-    // VAS Scales
     formData.vasPre = data.vasPre !== undefined ? data.vasPre : 8;
     formData.vasPost = data.vasPost !== undefined ? data.vasPost : 3;
     setupVasScale('vasPreContainer', formData.vasPre, (score) => { formData.vasPre = score; });
     setupVasScale('vasPostContainer', formData.vasPost, (score) => { formData.vasPost = score; });
     calculateVasDelta();
 
-    // 副作用 Cards
     formData.sideEffects = data.sideEffects || [];
     document.querySelectorAll('.side-effect-card').forEach(card => {
       const cb = card.querySelector('input[type="checkbox"]');
@@ -610,13 +600,11 @@ document.addEventListener('DOMContentLoaded', () => {
       sideEffectOtherInput.style.display = 'block';
     }
 
-    // 滿意度
     formData.satisfaction = data.satisfaction || '非常滿意 (5 分)';
     document.querySelectorAll('.satisfaction-card').forEach(card => {
       card.classList.toggle('active', card.dataset.value === formData.satisfaction);
     });
 
-    // Signatures
     if (data.patientSignature) {
       formData.patientSignature = data.patientSignature;
       updateSignatureBoxUI('patientSigBox', data.patientSignature);
@@ -631,7 +619,6 @@ document.addEventListener('DOMContentLoaded', () => {
       resetSignatureBoxUI('emtSigBox', '救護人員簽名', 'fa-user-nurse');
     }
 
-    // Show Edit Mode Banner
     editFormNoText.textContent = data.formNo || '無單號';
     editModeBanner.style.display = 'flex';
 
@@ -693,7 +680,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       showToast('正在生成電子評估表 PDF...');
-      const pdfBase64 = await NalbuphinePdfGenerator.getPdfBase64(formData);
+      
+      // Capture the visible on-screen rendered form element directly!
+      const previewContainer = document.getElementById('previewFormContainer');
+      const targetElem = previewContainer.querySelector('#pdf-export-container') || previewContainer;
+      
+      const pdfBase64 = await NalbuphinePdfGenerator.getPdfBase64(formData, targetElem);
 
       const isUpdate = !!editingRecordId;
       const result = await syncManager.submitRecord(formData, pdfBase64, isUpdate, editingRecordId);
@@ -703,7 +695,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (result.success) {
         showToast(isUpdate ? '🎉 已成功覆蓋更新雲端與離線紀錄！' : (result.mode === 'cloud' ? '🎉 已成功上傳歸檔至 Google 雲端資料夾！' : result.message));
         
-        // Reset Edit Mode
         editingRecordId = null;
         editModeBanner.style.display = 'none';
 
