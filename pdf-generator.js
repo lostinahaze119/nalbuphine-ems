@@ -157,17 +157,12 @@ class NalbuphinePdfGenerator {
     document.body.removeChild(element);
   }
 
-  static async getPdfBase64(formData, targetElement = null) {
-    let elementToCapture = targetElement;
-    let tempWrapper = null;
-
-    if (!elementToCapture) {
-      tempWrapper = document.createElement('div');
-      tempWrapper.style.cssText = 'position:fixed; top:0; left:0; width:210mm; z-index:99999; background:#ffffff; box-shadow:0 0 20px rgba(0,0,0,0.5);';
-      tempWrapper.innerHTML = this.generateHTML(formData);
-      document.body.appendChild(tempWrapper);
-      elementToCapture = tempWrapper.firstElementChild;
-    }
+  static async getPdfBase64(formData) {
+    const tempWrapper = document.createElement('div');
+    tempWrapper.style.cssText = 'position:fixed; top:0; left:0; width:190mm; z-index:99999; background:#ffffff; opacity:1;';
+    tempWrapper.innerHTML = this.generateHTML(formData);
+    document.body.appendChild(tempWrapper);
+    const elementToCapture = tempWrapper.firstElementChild;
 
     const images = elementToCapture.querySelectorAll('img');
     await Promise.all(Array.from(images).map(img => {
@@ -178,7 +173,7 @@ class NalbuphinePdfGenerator {
       });
     }));
 
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 300));
 
     let base64 = '';
     try {

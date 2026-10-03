@@ -803,11 +803,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       showToast('正在生成電子評估表 PDF...');
       
-      // Direct on-screen rendered form element capture
-      const previewContainer = document.getElementById('previewFormContainer');
-      const targetElem = previewContainer.querySelector('#pdf-export-container') || previewContainer;
-      
-      const pdfBase64 = await NalbuphinePdfGenerator.getPdfBase64(formData, targetElem);
+      // Generate clean PDF Base64 via off-screen element
+      const pdfBase64 = await NalbuphinePdfGenerator.getPdfBase64(formData);
 
       const isUpdate = !!editingRecordId;
       const result = await syncManager.submitRecord(formData, pdfBase64, isUpdate, editingRecordId);
