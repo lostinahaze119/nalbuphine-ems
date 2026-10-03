@@ -2,8 +2,8 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Nalbuphine 止痛評估電子化系統 (EMS Clinical Tablet App)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <title>Nalbuphine 止痛評估電子化系統 (EMS Universal App)</title>
   
   <!-- FontAwesome Icons & Google Fonts -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -27,6 +27,9 @@
     </div>
     
     <div class="header-actions">
+      <button type="button" class="btn-icon" id="btnNewCase" style="background:#0D9488;" title="清除患者資料，建立新案件">
+        <i class="fas fa-plus-circle"></i> 新增案件
+      </button>
       <div class="status-indicator">
         <span class="status-dot" id="statusDot"></span>
         <span id="statusText">連線中...</span>
@@ -44,29 +47,34 @@
   <main class="main-container">
     <form id="nalbuphineForm" autocomplete="off">
       
-      <!-- Section 1: 給藥紀錄 & 出勤號碼 -->
+      <!-- Section 1: 給藥紀錄 & 出勤號碼 & 出勤單位 -->
       <section class="form-card" id="cardSec1">
         <h2 class="card-title">
-          <span class="icon-box"><i class="fas fa-calendar-alt"></i></span>
-          給藥紀錄與表單資訊
+          <span class="icon-box"><i class="fas fa-ambulance"></i></span>
+          出勤單位與表單資訊
           <span class="section-status-badge invalid" id="statusBadgeSec1"><i class="fas fa-exclamation-circle"></i> 必填</span>
         </h2>
         
         <div class="grid-2">
           <div class="form-group">
-            <label class="form-label">給藥日期與時間</label>
-            <div class="input-with-action">
-              <input type="date" id="inputDate" class="form-control" style="flex: 1.2;" required />
-              <input type="time" id="inputTime" class="form-control" style="flex: 1;" required />
-              <button type="button" id="btnSetNow" class="btn-inline" title="帶入現在時間">
-                <i class="fas fa-clock"></i> 現在
-              </button>
-            </div>
+            <label class="form-label">出勤單位 <span style="color:#EF4444;">*</span> <span style="font-size:12px; color:var(--slate-muted); font-weight:normal;">(常駐儲存，例：光明91)</span></label>
+            <input type="text" id="inputUnit" class="form-control" placeholder="例：光明91" value="光明91" required />
           </div>
 
           <div class="form-group">
             <label class="form-label">救護紀錄表單號 <span style="color:#EF4444;">*</span></label>
-            <input type="text" id="inputFormNo" class="form-control" placeholder="例：11403250123" required />
+            <input type="text" id="inputFormNo" class="form-control" placeholder="例：7777777" required />
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 10px;">
+          <label class="form-label">給藥日期與時間</label>
+          <div class="input-with-action">
+            <input type="date" id="inputDate" class="form-control" style="flex: 1.2;" required />
+            <input type="time" id="inputTime" class="form-control" style="flex: 1;" required />
+            <button type="button" id="btnSetNow" class="btn-inline" title="帶入現在時間">
+              <i class="fas fa-clock"></i> 現在
+            </button>
           </div>
         </div>
       </section>
@@ -275,7 +283,7 @@
 
           <div class="signature-box-container">
             <div class="signature-box-header">
-              <label class="form-label">救護人員簽名 <span style="color:#EF4444;">*</span></label>
+              <label class="form-label">救護人員簽名 <span style="color:#EF4444;">*</span> <span style="font-size:11px; color:var(--slate-muted); font-weight:normal;">(常用簽名自動帶入)</span></label>
               <button type="button" class="btn-clear-sig" id="btnDeleteEmtSig">
                 <i class="fas fa-trash-alt"></i> 清除簽名
               </button>
@@ -322,7 +330,7 @@
         <button type="button" class="btn-close-modal">&times;</button>
       </div>
       <div class="modal-body" style="background: #F8FAFC;">
-        <div id="previewFormContainer" style="background:#FFF; padding:20px; border-radius:12px; border:1px solid #E2E8F0; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+        <div id="previewFormContainer" style="background:#FFF; padding:15px; border-radius:12px; border:1px solid #E2E8F0; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
           <!-- Dynamic Form Preview Rendered Here -->
         </div>
       </div>
@@ -419,13 +427,13 @@
   <div class="modal-overlay" id="gasCodeModal">
     <div class="modal-content" style="max-width:750px;">
       <div class="modal-header">
-        <h3 class="modal-title"><i class="fas fa-code"></i> Google Apps Script 後端腳本 (gas_script.gs)</h3>
+        <h3 class="modal-title"><i class="fas fa-code"></i> Google Apps Script 後端腳本</h3>
         <button type="button" class="btn-close-modal">&times;</button>
       </div>
       <div class="modal-body">
         <textarea id="gasCodeTextarea" class="form-control" style="height:320px; font-family:monospace; font-size:12px;" readonly>
 /**
- * Nalbuphine 止痛評估電子化系統 - Google Apps Script (GAS) 後端腳本
+ * Nalbuphine 止痛評估電子化系統 - Google Apps Script (GAS) 雲端原生 PDF 生成後端腳本
  */
 const FOLDER_NAME = "Nalbuphine 止痛評估表";
 const SPREADSHEET_NAME = "Nalbuphine 止痛評估表紀錄總表";
@@ -438,33 +446,33 @@ function doPost(e) {
 
     if (sheet.getLastRow() === 0) {
       sheet.appendRow([
-        "記錄識別碼", "填表時間", "給藥日期", "給藥時間", "救護紀錄表單號", 
+        "記錄識別碼", "出勤單位", "填表時間", "給藥日期", "給藥時間", "救護紀錄表單號", 
         "性別", "年齡", "適用條件", "給藥劑量(mg)", "給藥途徑", 
         "給藥前 VAS", "給藥後半小時 VAS", "VAS 改善幅度", "副作用反應", 
         "其他副作用說明", "給藥滿意度", "病患簽名狀態", "救護人員簽名狀態", "雲端 PDF 檔案連結"
       ]);
-      sheet.getRange(1, 1, 1, 19).setFontWeight("bold").setBackground("#0D9488").setFontColor("#FFFFFF");
+      sheet.getRange(1, 1, 1, 20).setFontWeight("bold").setBackground("#0D9488").setFontColor("#FFFFFF");
     }
 
     const folder = getOrCreateFolder(FOLDER_NAME);
-    let driveFileUrl = "";
-    if (postData.pdfBase64) {
-      const pdfBlob = Utilities.newBlob(
-        Utilities.base64Decode(postData.pdfBase64),
-        "application/pdf",
-        `Nalbuphine評估表_${postData.formNo || postData.recordId}.pdf`
-      );
-      
-      // 如果為修改模式，嘗試覆蓋同名舊檔
-      if (postData.isUpdate && postData.formNo) {
-        const existingFiles = folder.getFilesByName(`Nalbuphine評估表_${postData.formNo}.pdf`);
-        while (existingFiles.hasNext()) {
-          existingFiles.next().setTrashed(true);
-        }
+    let pdfBlob = createServerPdfBlob(postData);
+
+    const minguoYear = postData.date ? (parseInt(postData.date.split('-')[0]) - 1911) : '115';
+    const mm = postData.date ? postData.date.split('-')[1] : '10';
+    const dd = postData.date ? postData.date.split('-')[2] : '04';
+    const minguoDate = `${minguoYear}${mm}${dd}`;
+    const pdfFileName = `${postData.unit || '光明91'}_${minguoDate}_${postData.formNo || postData.recordId}.pdf`;
+
+    if (postData.isUpdate && postData.formNo) {
+      const existingFiles = folder.getFilesByName(pdfFileName);
+      while (existingFiles.hasNext()) {
+        existingFiles.next().setTrashed(true);
       }
-      const pdfFile = folder.createFile(pdfBlob);
-      driveFileUrl = pdfFile.getUrl();
     }
+
+    pdfBlob.setName(pdfFileName);
+    const pdfFile = folder.createFile(pdfBlob);
+    const driveFileUrl = pdfFile.getUrl();
 
     let vasDeltaStr = "";
     if (postData.vasPre !== undefined && postData.vasPost !== undefined) {
@@ -473,7 +481,8 @@ function doPost(e) {
     }
 
     const rowData = [
-      postData.recordId || "", postData.timestamp || new Date().toLocaleString("zh-TW"),
+      postData.recordId || "", postData.unit || "光明91",
+      postData.timestamp || new Date().toLocaleString("zh-TW"),
       postData.date || "", postData.time || "", postData.formNo || "",
       postData.gender || "", postData.age || "", postData.conditions || "",
       postData.dosage || "", postData.route || "",
@@ -484,12 +493,11 @@ function doPost(e) {
       postData.emtSignature ? "已簽名" : "未簽名", driveFileUrl
     ];
 
-    // 如果為修改覆蓋模式，尋找舊記錄 ID 進行更新
     let targetRow = -1;
     if (postData.isUpdate && postData.recordId) {
       const data = sheet.getDataRange().getValues();
       for (let i = 1; i < data.length; i++) {
-        if (data[i][0] == postData.recordId || data[i][4] == postData.formNo) {
+        if (data[i][0] == postData.recordId || data[i][5] == postData.formNo) {
           targetRow = i + 1;
           break;
         }
@@ -516,6 +524,135 @@ function doPost(e) {
 
 function doGet(e) {
   return ContentService.createTextOutput("Nalbuphine 止痛評估電子化系統 GAS Webhook 運作正常！");
+}
+
+function createServerPdfBlob(postData) {
+  const isChecked = (arrStr, val) => arrStr && arrStr.indexOf(val) !== -1 ? '■' : '□';
+  const isRadio = (fieldVal, targetVal) => fieldVal === targetVal ? '■' : '□';
+
+  let vasDeltaStr = "";
+  if (postData.vasPre !== undefined && postData.vasPost !== undefined) {
+    const delta = postData.vasPre - postData.vasPost;
+    vasDeltaStr = `${delta > 0 ? '改善 ' + delta + ' 分' : delta === 0 ? '無變化' : '增加 ' + Math.abs(delta) + ' 分'}`;
+  }
+
+  const dateParts = postData.date ? postData.date.split('-') : ['', '', ''];
+  const timeParts = postData.time ? postData.time.split(':') : ['', ''];
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: 'DFKai-SB', 'PMingLiU', 'MingLiU', sans-serif; font-size: 13pt; line-height: 1.6; padding: 15px; color: #000; }
+        h1 { text-align: center; font-size: 22pt; margin: 0 0 15px 0; font-weight: bold; }
+        .row { margin-bottom: 14px; }
+        .underline { text-decoration: underline; font-weight: bold; }
+        .sig-box { border-bottom: 1px solid #000; min-height: 60px; height: 60px; text-align: center; margin-top: 4px; }
+        .sig-img { max-height: 55px; max-width: 100%; }
+        .notice { margin-top: 30px; font-size: 11pt; color: #444; }
+      </style>
+    </head>
+    <body>
+      <h1>Nalbuphine &nbsp;&nbsp; 止痛評估表</h1>
+
+      <div class="row" style="display:flex; justify-space-between;">
+        <span><strong>出勤單位：</strong> <span class="underline">&nbsp; ${postData.unit || '光明91'} &nbsp;</span></span>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <span><strong>救護紀錄表單號：</strong> <span class="underline">&nbsp; ${postData.formNo || '________________'} &nbsp;</span></span>
+      </div>
+
+      <div class="row">
+        <strong>給藥紀錄：</strong>
+        <span class="underline">&nbsp; ${dateParts[0] || '____'} &nbsp;</span> 年 
+        <span class="underline">&nbsp; ${dateParts[1] || '__'} &nbsp;</span> 月 
+        <span class="underline">&nbsp; ${dateParts[2] || '__'} &nbsp;</span> 日 
+        <span class="underline">&nbsp; ${timeParts[0] || '__'} &nbsp;</span> 時 
+        <span class="underline">&nbsp; ${timeParts[1] || '__'} &nbsp;</span> 分
+      </div>
+
+      <div class="row">
+        <strong>性別：</strong> ${isRadio(postData.gender, '男')} 男 &nbsp;&nbsp;&nbsp; ${isRadio(postData.gender, '女')} 女 
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <strong>年齡：</strong> <span class="underline">&nbsp; ${postData.age || '____'} &nbsp;</span> 歲
+      </div>
+
+      <div class="row">
+        <strong>適用條件 ｜</strong><br/>
+        <div style="margin-left: 20px; line-height: 1.6;">
+          <div>${isChecked(postData.conditions, '接受同步整流或經皮體外心律調節器(TCP)')} 接受同步整流或經皮體外心律調節器(TCP)</div>
+          <div>${isChecked(postData.conditions, '肢體夾困，預期短時間(≧20 分鐘)無法脫困')} 肢體夾困，預期短時間(≧20 分鐘)無法脫困</div>
+          <div>${isChecked(postData.conditions, '創傷性截肢或不完全截肢')} 創傷性截肢或不完全截肢</div>
+          <div>${isChecked(postData.conditions, '外傷後，肢體明顯變形疑似骨折')} 外傷後，肢體明顯變形疑似骨折</div>
+          <div>${isChecked(postData.conditions, 'VAS 疼痛指數≧6 分')} VAS 疼痛指數≧6 分</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <strong>給藥劑量 / 途徑：</strong> 
+        <span class="underline">&nbsp; ${postData.dosage || '0.5'} &nbsp;</span> mg 
+        （ ${isRadio(postData.route, 'IV')} IV &nbsp;&nbsp; ${isRadio(postData.route, 'IM')} IM ）
+      </div>
+
+      <div class="row">
+        <strong>疼痛指數變化（VAS 0 － 10 分）</strong>
+        <div style="margin-left: 20px; line-height: 1.5;">
+          給藥前 VAS： <span class="underline">&nbsp; ${postData.vasPre !== undefined ? postData.vasPre : '____'} &nbsp;</span> 分<br/>
+          給藥後半小時 VAS： <span class="underline">&nbsp; ${postData.vasPost !== undefined ? postData.vasPost : '____'} &nbsp;</span> 分 (${vasDeltaStr})
+        </div>
+      </div>
+
+      <div class="row">
+        <strong>副作用反應（可複選）</strong>
+        <div style="margin-left: 20px; line-height: 1.5;">
+          <div>${isChecked(postData.sideEffects, '無任何副作用')} 無任何副作用</div>
+          <div>${isChecked(postData.sideEffects, '鎮靜 / 嗜睡')} 鎮靜 / 嗜睡</div>
+          <div>${isChecked(postData.sideEffects, '頭暈 / 眩暈')} 頭暈 / 眩暈</div>
+          <div>${isChecked(postData.sideEffects, '噁心 / 嘔吐')} 噁心 / 嘔吐</div>
+          <div>${isChecked(postData.sideEffects, '呼吸抑制 (呼吸速率 < 10 次/分)')} 呼吸抑制（呼吸速率 &lt; 10 次/分）</div>
+          <div>${isChecked(postData.sideEffects, '其他')} 其他： <span class="underline">&nbsp; ${postData.sideEffectOther || '________________'} &nbsp;</span></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <strong>對於給予止痛藥物滿意度</strong>
+        <div style="margin-left: 20px; line-height: 1.5;">
+          <div>${isRadio(postData.satisfaction, '非常滿意 (5 分)')} 非常滿意（5 分）</div>
+          <div>${isRadio(postData.satisfaction, '滿意 (4 分)')} 滿意（4 分）</div>
+          <div>${isRadio(postData.satisfaction, '普通 (3 分)')} 普通（3 分）</div>
+          <div>${isRadio(postData.satisfaction, '不滿意 (2 分)')} 不滿意（2 分）</div>
+          <div>${isRadio(postData.satisfaction, '非常不滿意 (1 分)')} 非常不滿意（1 分）</div>
+        </div>
+      </div>
+
+      <table style="width: 100%; margin-top: 20px; border-collapse: collapse;">
+        <tr>
+          <td style="width: 48%; vertical-align: bottom;">
+            <strong>病患簽名：</strong>
+            <div class="sig-box">
+              ${postData.patientSignature ? `<img src="${postData.patientSignature}" class="sig-img" />` : '<span style="color:#888;">(未簽名)</span>'}
+            </div>
+          </td>
+          <td style="width: 4%;"></td>
+          <td style="width: 48%; vertical-align: bottom;">
+            <strong>救護人員簽名：</strong>
+            <div class="sig-box">
+              ${postData.emtSignature ? `<img src="${postData.emtSignature}" class="sig-img" />` : '<span style="color:#888;">(未簽名)</span>'}
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <div class="notice">
+        此表單請於下個月 10 號前上傳至 Google 表單
+      </div>
+    </body>
+    </html>
+  `;
+
+  const htmlOutput = HtmlService.createHtmlOutput(htmlContent);
+  return htmlOutput.getAs('application/pdf');
 }
 
 function getOrCreateFolder(folderName) {

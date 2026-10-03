@@ -2,6 +2,21 @@
  * Nalbuphine 止痛評估電子化系統 - 精準 1 頁 A4 PDF 生成與列印引擎
  */
 class NalbuphinePdfGenerator {
+  static getMinguoFileName(formData) {
+    const unit = formData.unit || '光明91';
+    const formNo = formData.formNo || Date.now();
+    let minguoDate = '1151004';
+    if (formData.date) {
+      const parts = formData.date.split('-');
+      const yyyy = parseInt(parts[0]);
+      const mm = parts[1];
+      const dd = parts[2];
+      const minguoYear = yyyy - 1911;
+      minguoDate = `${minguoYear}${mm}${dd}`;
+    }
+    return `${unit}_${minguoDate}_${formNo}.pdf`;
+  }
+
   static generateHTML(formData) {
     const isChecked = (arr, val) => arr && arr.includes(val) ? '■' : '□';
     const isRadio = (fieldVal, targetVal) => fieldVal === targetVal ? '■' : '□';
@@ -23,17 +38,18 @@ class NalbuphinePdfGenerator {
           Nalbuphine &nbsp;&nbsp; 止痛評估表
         </h1>
 
+        <div style="margin-bottom: 10px; display: flex; justify-content: space-between;">
+          <span><strong>出勤單位：</strong> <u>&nbsp; ${formData.unit || '光明91'} &nbsp;</u></span>
+          <span><strong>救護紀錄表單號：</strong> <u>&nbsp; ${formData.formNo || '________________'} &nbsp;</u></span>
+        </div>
+
         <div style="margin-bottom: 10px;">
-          <strong>給藥紀錄</strong> &nbsp;&nbsp;&nbsp;&nbsp;
+          <strong>給藥紀錄：</strong>
           <u>&nbsp; ${formData.year || '____'} &nbsp;</u> 年 
           <u>&nbsp; ${formData.month || '__'} &nbsp;</u> 月 
           <u>&nbsp; ${formData.day || '__'} &nbsp;</u> 日 
           <u>&nbsp; ${formData.hour || '__'} &nbsp;</u> 時 
           <u>&nbsp; ${formData.minute || '__'} &nbsp;</u> 分
-        </div>
-
-        <div style="margin-bottom: 10px;">
-          <strong>救護紀錄表單號：</strong> <u>&nbsp; ${formData.formNo || '________________'} &nbsp;</u>
         </div>
 
         <div style="margin-bottom: 10px;">
@@ -121,10 +137,12 @@ class NalbuphinePdfGenerator {
     element.innerHTML = this.generateHTML(formData);
     document.body.appendChild(element);
 
+    const fileName = this.getMinguoFileName(formData);
+
     if (window.html2pdf) {
       const opt = {
         margin:       [5, 5, 5, 5],
-        filename:     `Nalbuphine止痛評估_${formData.formNo || Date.now()}.pdf`,
+        filename:     fileName,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true, logging: false },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
@@ -150,7 +168,6 @@ class NalbuphinePdfGenerator {
       elementToCapture = tempWrapper.firstElementChild;
     }
 
-    // Wait for all signature images inside elementToCapture to fully render
     const images = elementToCapture.querySelectorAll('img');
     await Promise.all(Array.from(images).map(img => {
       if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
@@ -160,22 +177,21 @@ class NalbuphinePdfGenerator {
       });
     }));
 
-    // Wait 300ms for layout & canvas rasterization
     await new Promise(r => setTimeout(r, 300));
 
     let base64 = '';
     try {
       if (window.html2pdf) {
+        const fileName = this.getMinguoFileName(formData);
         const opt = {
           margin:       [5, 5, 5, 5],
-          filename:     'form.pdf',
+          filename:     fileName,
           image:        { type: 'jpeg', quality: 0.98 },
           html2canvas:  { scale: 2, useCORS: true, logging: false, allowTaint: true },
           jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
           pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
         };
         
-        // Correct html2pdf chain with .toPdf().output('datauristring')
         const worker = window.html2pdf().set(opt).from(elementToCapture);
         const pdfDataUri = await worker.toPdf().output('datauristring');
         

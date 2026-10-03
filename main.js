@@ -9,7 +9,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // State
   let editingRecordId = null; // null for new entry, string ID when editing
 
+  // Permanent EMS Unit from localStorage
+  const savedUnit = localStorage.getItem('saved_ems_unit') || '光明91';
+
   const formData = {
+    unit: savedUnit,
     year: '',
     month: '',
     day: '',
@@ -37,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // DOM Elements
   const formElement = document.getElementById('nalbuphineForm');
+  const unitInput = document.getElementById('inputUnit');
   const dateInput = document.getElementById('inputDate');
   const timeInput = document.getElementById('inputTime');
   const btnSetNow = document.getElementById('btnSetNow');
@@ -44,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const ageInput = document.getElementById('inputAge');
   const dosageInput = document.getElementById('inputDosage');
   const sideEffectOtherInput = document.getElementById('inputSideEffectOther');
+  const btnNewCase = document.getElementById('btnNewCase');
   
   // Modals
   const signatureModal = document.getElementById('signatureModal');
@@ -56,6 +62,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const editModeBanner = document.getElementById('editModeBanner');
   const editFormNoText = document.getElementById('editFormNoText');
   const btnCancelEdit = document.getElementById('btnCancelEdit');
+
+  // Initialize EMS Unit Field
+  if (unitInput) {
+    unitInput.value = formData.unit;
+    unitInput.addEventListener('input', () => {
+      formData.unit = unitInput.value.trim();
+      localStorage.setItem('saved_ems_unit', formData.unit);
+      validateFormStatus();
+    });
+  }
 
   // Initialize UI Values & Current Date/Time
   function initDateTime() {
@@ -96,20 +112,97 @@ document.addEventListener('DOMContentLoaded', () => {
 
   dateInput.addEventListener('change', updateDateTimeState);
   timeInput.addEventListener('change', updateDateTimeState);
+  
   formNoInput.addEventListener('input', () => {
     formData.formNo = formNoInput.value.trim();
     validateFormStatus();
   });
+
   ageInput.addEventListener('input', () => {
     formData.age = ageInput.value.trim();
     validateFormStatus();
   });
+
   dosageInput.addEventListener('input', () => {
     formData.dosage = dosageInput.value.trim();
     validateFormStatus();
   });
 
   initDateTime();
+
+  // 新增案件 (New Case) 按鈕事件處理：清空病患資料，保留常駐單位與救護員簽名
+  if (btnNewCase) {
+    btnNewCase.addEventListener('click', () => {
+      if (editingRecordId || formData.formNo || formData.age) {
+        if (!confirm('確定要建立新案件嗎？目前填寫的病患資料將被重置（但會保留您的單位與救護人員簽名）。')) {
+          return;
+        }
+      }
+      resetFormForNewCase();
+    });
+  }
+
+  function resetFormForNewCase() {
+    editingRecordId = null;
+    if (editModeBanner) editModeBanner.style.display = 'none';
+
+    // 重置病患相關欄位
+    formData.formNo = '';
+    formNoInput.value = '';
+
+    formData.age = '';
+    ageInput.value = '';
+
+    formData.gender = '男';
+    document.querySelectorAll('#genderGroup .btn-toggle-option').forEach(b => {
+      b.classList.toggle('active', b.dataset.value === '男');
+    });
+
+    formData.conditions = ['VAS 疼痛指數≧6 分'];
+    document.querySelectorAll('.condition-card').forEach(card => {
+      const cb = card.querySelector('input[type="checkbox"]');
+      cb.checked = cb.value === 'VAS 疼痛指數≧6 分';
+      card.classList.toggle('selected', cb.checked);
+    });
+
+    formData.dosage = '0.5';
+    dosageInput.value = '0.5';
+
+    formData.route = 'IV';
+    document.querySelectorAll('#routeGroup .btn-toggle-option').forEach(b => {
+      b.classList.toggle('active', b.dataset.value === 'IV');
+    });
+
+    formData.vasPre = 8;
+    formData.vasPost = 3;
+    setupVasScale('vasPreContainer', formData.vasPre, (score) => { formData.vasPre = score; });
+    setupVasScale('vasPostContainer', formData.vasPost, (score) => { formData.vasPost = score; });
+    calculateVasDelta();
+
+    formData.sideEffects = ['無任何副作用'];
+    document.querySelectorAll('.side-effect-card').forEach(card => {
+      const cb = card.querySelector('input[type="checkbox"]');
+      cb.checked = cb.value === '無任何副作用';
+      card.classList.toggle('selected', cb.checked);
+    });
+    sideEffectOtherInput.value = '';
+    sideEffectOtherInput.style.display = 'none';
+
+    formData.satisfaction = '非常滿意 (5 分)';
+    document.querySelectorAll('.satisfaction-card').forEach(card => {
+      card.classList.toggle('active', card.dataset.value === formData.satisfaction);
+    });
+
+    // 重置病患簽名，保留救護員簽名
+    formData.patientSignature = '';
+    resetSignatureBoxUI('patientSigBox', '病患 / 家屬簽名', 'fa-pen-fancy');
+
+    // 時間更新為現在
+    initDateTime();
+
+    validateFormStatus();
+    showToast('已建立新案件 (已保留單位與救護人員簽名)', 'success');
+  }
 
   // 性別 Toggle
   const genderOptions = document.querySelectorAll('#genderGroup .btn-toggle-option');
@@ -147,9 +240,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // VAS Pain Scale UI (0-10) with COLOR FIX!
+  // VAS Pain Scale UI (0-10)
   function setupVasScale(containerId, initialScore, onScoreChange) {
     const container = document.getElementById(containerId);
+    if (!container) return;
     const scoreDisplay = container.querySelector('.vas-score-display');
     const buttonsContainer = container.querySelector('.vas-buttons');
     
@@ -401,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function validateFormStatus() {
-    const sec1Valid = !!(formData.date && formData.time && formData.formNo);
+    const sec1Valid = !!(formData.unit && formData.date && formData.time && formData.formNo);
     const sec2Valid = !!(formData.gender && formData.age);
     const sec3Valid = formData.conditions && formData.conditions.length > 0;
     const sec4Valid = !!(formData.dosage && formData.route);
@@ -479,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // History Records
+  // History Records Render with Delete Option
   document.getElementById('btnHistory').addEventListener('click', () => {
     renderHistoryTable();
     historyModal.classList.add('open');
@@ -507,13 +601,21 @@ document.addEventListener('DOMContentLoaded', () => {
       ${records.map(r => `
         <div style="border:1.5px solid #E2E8F0; padding:16px; border-radius:14px; margin-bottom:14px; background:#FFF; box-shadow:0 2px 6px rgba(0,0,0,0.02);">
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-            <strong style="font-size:16px; color:var(--teal-dark);">單號：${r.data.formNo || '無單號'}</strong>
+            <div>
+              <span style="font-size:12px; padding:2px 8px; border-radius:6px; background:#E0F2FE; color:#0369A1; font-weight:700; margin-right:6px;">
+                ${r.data.unit || '光明91'}
+              </span>
+              <strong style="font-size:16px; color:var(--teal-dark);">單號：${r.data.formNo || '無單號'}</strong>
+            </div>
             <div style="display:flex; align-items:center; gap:8px;">
               <span style="font-size:12px; padding:3px 10px; border-radius:12px; font-weight:700; ${r.status === 'synced' ? 'background:#D1FAE5; color:#065F46;' : 'background:#FEF3C7; color:#92400E;'}">
                 ${r.status === 'synced' ? '已同步雲端' : '離線暫存'}
               </span>
-              <button type="button" class="btn-inline btn-edit-record" data-id="${r.id}" style="height:32px; padding:0 12px; font-size:13px; background:var(--teal-dark);">
-                <i class="fas fa-edit"></i> 修改此筆紀錄
+              <button type="button" class="btn-inline btn-edit-record" data-id="${r.id}" style="height:32px; padding:0 12px; font-size:13px; background:var(--teal-dark);" title="修改內容">
+                <i class="fas fa-edit"></i> 修改
+              </button>
+              <button type="button" class="btn-inline btn-delete-record" data-id="${r.id}" style="height:32px; padding:0 12px; font-size:13px; background:#EF4444;" title="刪除此筆紀錄">
+                <i class="fas fa-trash-alt"></i> 刪除
               </button>
             </div>
           </div>
@@ -543,6 +645,19 @@ document.addEventListener('DOMContentLoaded', () => {
         loadRecordForEditing(id);
       });
     });
+
+    // 刪除按鈕處理
+    container.querySelectorAll('.btn-delete-record').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        if (confirm('確定要刪除這筆救護紀錄嗎？此動作將從本地暫存中移除。')) {
+          syncManager.deleteLocalRecord(id);
+          renderHistoryTable();
+          showToast('紀錄已成功刪除');
+        }
+      });
+    });
   }
 
   function loadRecordForEditing(recordId) {
@@ -552,6 +667,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const data = target.data;
     editingRecordId = recordId;
+
+    if (data.unit) {
+      formData.unit = data.unit;
+      if (unitInput) unitInput.value = data.unit;
+    }
 
     if (data.date) dateInput.value = data.date;
     if (data.time) timeInput.value = data.time;
@@ -637,10 +757,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Pre-submission Preview Trigger
   document.getElementById('btnTriggerPreview').addEventListener('click', () => {
+    formData.unit = unitInput ? unitInput.value.trim() : (localStorage.getItem('saved_ems_unit') || '光明91');
     formData.formNo = formNoInput.value.trim();
     formData.age = ageInput.value.trim();
     formData.dosage = dosageInput.value.trim() || '0.5';
     formData.sideEffectOther = sideEffectOtherInput.value.trim();
+
+    if (!formData.unit) {
+      showToast('請填寫出勤單位！', 'warning');
+      if (unitInput) unitInput.focus();
+      return;
+    }
 
     if (!formData.formNo) {
       showToast('請填寫救護紀錄表單號！', 'warning');
@@ -681,7 +808,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       showToast('正在生成電子評估表 PDF...');
       
-      // Capture the visible on-screen rendered form element directly!
+      // Direct on-screen rendered form element capture
       const previewContainer = document.getElementById('previewFormContainer');
       const targetElem = previewContainer.querySelector('#pdf-export-container') || previewContainer;
       
@@ -696,7 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(isUpdate ? '🎉 已成功覆蓋更新雲端與離線紀錄！' : (result.mode === 'cloud' ? '🎉 已成功上傳歸檔至 Google 雲端資料夾！' : result.message));
         
         editingRecordId = null;
-        editModeBanner.style.display = 'none';
+        if (editModeBanner) editModeBanner.style.display = 'none';
 
         await NalbuphinePdfGenerator.downloadPdf(formData);
       }

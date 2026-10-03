@@ -9,10 +9,8 @@ class GoogleSyncManager {
     // Default hardcoded Google Apps Script Web App URL for automatic zero-config sync!
     this.defaultGasUrl = 'https://script.google.com/macros/s/AKfycbxvJMmFTu241FlzbYjthzHRsiTrFgynZujRj2SrbIsnRbBc4vDLOpj2quW8mmn6Cz6dcQ/exec';
     
-    // Use stored URL if present, otherwise fallback to default hardcoded URL
     this.gasUrl = localStorage.getItem(this.storageKeyUrl) || this.defaultGasUrl;
     
-    // Ensure default URL is saved to localStorage if not set
     if (!localStorage.getItem(this.storageKeyUrl)) {
       localStorage.setItem(this.storageKeyUrl, this.defaultGasUrl);
     }
@@ -39,7 +37,6 @@ class GoogleSyncManager {
       this.updateOnlineStatusUI(false);
     });
 
-    // Trigger initial status update
     this.updateOnlineStatusUI(navigator.onLine);
   }
 
@@ -80,6 +77,12 @@ class GoogleSyncManager {
     return recordData;
   }
 
+  deleteLocalRecord(recordId) {
+    const records = this.getLocalRecords().filter(r => r.id !== recordId);
+    localStorage.setItem(this.storageKeyLocalRecords, JSON.stringify(records));
+    return records;
+  }
+
   async submitRecord(formData, pdfBase64 = '', isUpdate = false, existingRecordId = '') {
     const recordId = isUpdate && existingRecordId ? existingRecordId : ('REC_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4));
     
@@ -93,7 +96,6 @@ class GoogleSyncManager {
       syncError: ''
     };
 
-    // Save or update locally first (Offline-First approach)
     this.saveOrUpdateLocalRecord(record);
 
     if (this.gasUrl && navigator.onLine) {
@@ -124,6 +126,7 @@ class GoogleSyncManager {
       recordId: record.id,
       isUpdate: !!record.isUpdate,
       timestamp: record.timestamp,
+      unit: record.data.unit || '光明91',
       date: record.data.date,
       time: record.data.time,
       formNo: record.data.formNo,
