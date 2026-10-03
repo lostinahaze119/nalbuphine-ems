@@ -130,11 +130,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initDateTime();
 
-  // 新增案件 (New Case) 按鈕事件處理：清空病患資料，保留常駐單位與救護員簽名
+  // 新增案件 (New Case) 按鈕事件處理：清空病患資料與雙方簽名，僅保留常駐單位
   if (btnNewCase) {
     btnNewCase.addEventListener('click', () => {
       if (editingRecordId || formData.formNo || formData.age) {
-        if (!confirm('確定要建立新案件嗎？目前填寫的病患資料將被重置（但會保留您的單位與救護人員簽名）。')) {
+        if (!confirm('確定要建立新案件嗎？目前填寫的病患資料與簽名將被重置（但會保留您的常駐出勤單位）。')) {
           return;
         }
       }
@@ -193,15 +193,18 @@ document.addEventListener('DOMContentLoaded', () => {
       card.classList.toggle('active', card.dataset.value === formData.satisfaction);
     });
 
-    // 重置病患簽名，保留救護員簽名
+    // 重置病患簽名與救護人員簽名 (不保留救護員簽名)
     formData.patientSignature = '';
     resetSignatureBoxUI('patientSigBox', '病患 / 家屬簽名', 'fa-pen-fancy');
+
+    formData.emtSignature = '';
+    resetSignatureBoxUI('emtSigBox', '救護人員簽名', 'fa-user-nurse');
 
     // 時間更新為現在
     initDateTime();
 
     validateFormStatus();
-    showToast('已建立新案件 (已保留單位與救護人員簽名)', 'success');
+    showToast('已建立新案件 (已保留出勤單位，簽名已重置)', 'success');
   }
 
   // 性別 Toggle
@@ -450,7 +453,6 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         formData.emtSignature = sigDataUrl;
         updateSignatureBoxUI('emtSigBox', sigDataUrl);
-        localStorage.setItem('saved_emt_signature', sigDataUrl);
       }
       showToast('簽名已完成儲存！');
     }
@@ -466,13 +468,6 @@ document.addEventListener('DOMContentLoaded', () => {
       <span class="re-sign-badge"><i class="fas fa-edit"></i> 點擊重簽</span>
       <img src="${dataUrl}" class="signature-preview-img" alt="簽名預覽" />
     `;
-  }
-
-  // Auto load saved EMT signature
-  const defaultEmtSig = localStorage.getItem('saved_emt_signature');
-  if (defaultEmtSig) {
-    formData.emtSignature = defaultEmtSig;
-    updateSignatureBoxUI('emtSigBox', defaultEmtSig);
   }
 
   // Section Validation Status Badges

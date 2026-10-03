@@ -122,22 +122,28 @@ class GoogleSyncManager {
   }
 
   async uploadToGas(record) {
+    let fileName = '光明91_1151004_7777777.pdf';
+    if (window.NalbuphinePdfGenerator && record.data) {
+      fileName = NalbuphinePdfGenerator.getMinguoFileName(record.data);
+    }
+
     const payload = {
       recordId: record.id,
       isUpdate: !!record.isUpdate,
       timestamp: record.timestamp,
+      fileName: fileName,
       unit: record.data.unit || '光明91',
       date: record.data.date,
       time: record.data.time,
       formNo: record.data.formNo,
       gender: record.data.gender,
       age: record.data.age,
-      conditions: record.data.conditions.join(', '),
+      conditions: record.data.conditions ? record.data.conditions.join(', ') : '',
       dosage: record.data.dosage,
       route: record.data.route,
       vasPre: record.data.vasPre,
       vasPost: record.data.vasPost,
-      sideEffects: record.data.sideEffects.join(', '),
+      sideEffects: record.data.sideEffects ? record.data.sideEffects.join(', ') : '',
       sideEffectOther: record.data.sideEffectOther,
       satisfaction: record.data.satisfaction,
       patientSignature: record.data.patientSignature,
