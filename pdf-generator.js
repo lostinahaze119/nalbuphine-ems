@@ -75,10 +75,18 @@ class NalbuphinePdfGenerator {
           </div>
         </div>
 
-        <div style="margin-bottom: 8px;">
-          <strong>給藥劑量 / 途徑：</strong> 
-          <u>&nbsp; ${formData.dosage || '0.5'} &nbsp;</u> mg 
-          （ ${isRadio(formData.route, 'IV')} IV &nbsp;&nbsp; ${isRadio(formData.route, 'IM')} IM ）
+        <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: baseline;">
+          <div>
+            <strong>給藥劑量 / 途徑：</strong> 
+            <u>&nbsp; ${formData.dosage || '5'} &nbsp;</u> mg 
+            （ ${isRadio(formData.route, 'IV')} IV &nbsp;&nbsp; ${isRadio(formData.route, 'IM')} IM ）
+          </div>
+          <div>
+            <strong>重複給藥：</strong>
+            ${isRadio(formData.repeatDose, '是')} 是 &nbsp;&nbsp;
+            ${isRadio(formData.repeatDose, '否')} 否
+            ${formData.repeatDose === '是' && formData.repeatDoseRemark ? `<span style="font-size: 10pt;">（<u>&nbsp;${formData.repeatDoseRemark}&nbsp;</u>）</span>` : ''}
+          </div>
         </div>
 
         <div style="margin-bottom: 8px;">

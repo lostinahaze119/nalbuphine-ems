@@ -97,8 +97,8 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label">年齡 (歲) <span style="color:#EF4444;">*</span></label>
-            <input type="number" id="inputAge" class="form-control" placeholder="請輸入年齡" min="0" max="120" required />
+            <label class="form-label">年齡 (歲) <span style="color:#EF4444;">*</span> <span style="font-size:12px; color:var(--slate-muted); font-weight:normal;">(&gt; 0 整數)</span></label>
+            <input type="number" id="inputAge" class="form-control" placeholder="請輸入年齡" min="1" step="1" required />
           </div>
         </div>
       </section>
@@ -135,18 +135,18 @@
         </div>
       </section>
 
-      <!-- Section 4: 給藥劑量 / 途徑 -->
+      <!-- Section 4: 給藥劑量 / 途徑 / 重複給藥 -->
       <section class="form-card" id="cardSec4">
         <h2 class="card-title">
           <span class="icon-box"><i class="fas fa-syringe"></i></span>
-          給藥劑量 / 途徑
+          給藥劑量 / 途徑 / 重複給藥
           <span class="section-status-badge valid" id="statusBadgeSec4"><i class="fas fa-check-circle"></i> 完成</span>
         </h2>
 
-        <div class="grid-2">
+        <div class="grid-3" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px;">
           <div class="form-group">
             <label class="form-label">給藥劑量 (mg) <span style="color:#EF4444;">*</span></label>
-            <input type="text" id="inputDosage" class="form-control" value="0.5" placeholder="例：0.5 或 10" required />
+            <input type="number" id="inputDosage" class="form-control" value="5" min="1" step="1" placeholder="例：5" required />
           </div>
 
           <div class="form-group">
@@ -156,6 +156,19 @@
               <button type="button" class="btn-toggle-option" data-value="IM"><i class="fas fa-hand-holding-medical"></i> IM (肌肉)</button>
             </div>
           </div>
+
+          <div class="form-group">
+            <label class="form-label">重複給藥</label>
+            <div class="btn-toggle-group" id="repeatDoseGroup">
+              <button type="button" class="btn-toggle-option" data-value="是"><i class="fas fa-redo-alt"></i> 是</button>
+              <button type="button" class="btn-toggle-option active" data-value="否"><i class="fas fa-times"></i> 否</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" id="repeatDoseRemarkContainer" style="margin-top: 14px; display: none;">
+          <label class="form-label">重複給藥說明 / 備註 <span style="font-size:12px; color:var(--slate-muted); font-weight:normal;">(請說明重複給藥原因、追加時間或劑量)</span></label>
+          <input type="text" id="inputRepeatDoseRemark" class="form-control" placeholder="例：首次劑量 5mg 疼痛未緩解，經評估後再次追加 5mg" />
         </div>
       </section>
 
@@ -283,7 +296,7 @@
 
           <div class="signature-box-container">
             <div class="signature-box-header">
-              <label class="form-label">救護人員簽名 <span style="color:#EF4444;">*</span> <span style="font-size:11px; color:var(--slate-muted); font-weight:normal;">(常用簽名自動帶入)</span></label>
+              <label class="form-label">救護人員簽名 <span style="color:#EF4444;">*</span></label>
               <button type="button" class="btn-clear-sig" id="btnDeleteEmtSig">
                 <i class="fas fa-trash-alt"></i> 清除簽名
               </button>
@@ -447,11 +460,11 @@ function doPost(e) {
     if (sheet.getLastRow() === 0) {
       sheet.appendRow([
         "記錄識別碼", "出勤單位", "填表時間", "給藥日期", "給藥時間", "救護紀錄表單號", 
-        "性別", "年齡", "適用條件", "給藥劑量(mg)", "給藥途徑", 
+        "性別", "年齡", "適用條件", "給藥劑量(mg)", "給藥途徑", "重複給藥", "重複給藥備註",
         "給藥前 VAS", "給藥後半小時 VAS", "VAS 改善幅度", "副作用反應", 
         "其他副作用說明", "給藥滿意度", "病患簽名狀態", "救護人員簽名狀態", "雲端 PDF 檔案連結"
       ]);
-      sheet.getRange(1, 1, 1, 20).setFontWeight("bold").setBackground("#0D9488").setFontColor("#FFFFFF");
+      sheet.getRange(1, 1, 1, 22).setFontWeight("bold").setBackground("#0D9488").setFontColor("#FFFFFF");
     }
 
     const folder = getOrCreateFolder(FOLDER_NAME);
@@ -485,7 +498,8 @@ function doPost(e) {
       postData.timestamp || new Date().toLocaleString("zh-TW"),
       postData.date || "", postData.time || "", postData.formNo || "",
       postData.gender || "", postData.age || "", postData.conditions || "",
-      postData.dosage || "", postData.route || "",
+      postData.dosage || "5", postData.route || "",
+      postData.repeatDose || "否", postData.repeatDoseRemark || "",
       postData.vasPre !== undefined ? postData.vasPre : "",
       postData.vasPost !== undefined ? postData.vasPost : "",
       vasDeltaStr, postData.sideEffects || "", postData.sideEffectOther || "",
@@ -589,10 +603,18 @@ function createServerPdfBlob(postData) {
         </div>
       </div>
 
-      <div class="row">
-        <strong>給藥劑量 / 途徑：</strong> 
-        <span class="underline">&nbsp; ${postData.dosage || '0.5'} &nbsp;</span> mg 
-        （ ${isRadio(postData.route, 'IV')} IV &nbsp;&nbsp; ${isRadio(postData.route, 'IM')} IM ）
+      <div class="row" style="display:flex; justify-content:space-between; align-items:baseline;">
+        <div>
+          <strong>給藥劑量 / 途徑：</strong> 
+          <span class="underline">&nbsp; ${postData.dosage || '5'} &nbsp;</span> mg 
+          （ ${isRadio(postData.route, 'IV')} IV &nbsp;&nbsp; ${isRadio(postData.route, 'IM')} IM ）
+        </div>
+        <div>
+          <strong>重複給藥：</strong>
+          ${isRadio(postData.repeatDose, '是')} 是 &nbsp;&nbsp;
+          ${isRadio(postData.repeatDose, '否')} 否
+          ${postData.repeatDose === '是' && postData.repeatDoseRemark ? `（<span class="underline">&nbsp;${postData.repeatDoseRemark}&nbsp;</span>）` : ''}
+        </div>
       </div>
 
       <div class="row">
@@ -671,6 +693,26 @@ function getOrCreateSpreadsheet(sheetName) {
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-primary-large" id="btnCopyGasCode"><i class="fas fa-copy"></i> 複製腳本程式碼</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 6: 通用提醒確認視窗 (Warning / Confirmation Modal) -->
+  <div class="modal-overlay" id="warningConfirmModal">
+    <div class="modal-content" style="max-width: 480px; text-align: center; padding: 24px; border-radius: 18px;">
+      <div style="width: 58px; height: 58px; border-radius: 50%; background: #FEF3C7; color: #D97706; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 26px;">
+        <i class="fas fa-exclamation-triangle" id="warningModalIcon"></i>
+      </div>
+      <h3 class="modal-title" id="warningModalTitle" style="font-size: 19px; margin-bottom: 12px; color: #1E293B;">提示訊息</h3>
+      <div id="warningModalMsg" style="font-size: 14px; color: #475569; line-height: 1.6; margin-bottom: 24px; text-align: left; background: #F8FAFC; padding: 14px 18px; border-radius: 12px; border: 1px solid #E2E8F0;">
+      </div>
+      <div style="display: flex; gap: 12px; justify-content: center;">
+        <button type="button" class="btn-secondary-large" id="btnWarningCancel" style="color: #64748B; border-color: #CBD5E1; padding: 10px 22px; font-size: 14px;">
+          取消
+        </button>
+        <button type="button" class="btn-primary-large" id="btnWarningConfirm" style="max-width: 180px; padding: 10px 22px; font-size: 14px; background: #0D9488;">
+          確認繼續
+        </button>
       </div>
     </div>
   </div>

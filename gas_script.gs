@@ -41,6 +41,8 @@ function doPost(e) {
         "適用條件",
         "給藥劑量(mg)",
         "給藥途徑",
+        "重複給藥",
+        "重複給藥備註",
         "給藥前 VAS",
         "給藥後半小時 VAS",
         "VAS 改善幅度",
@@ -51,7 +53,7 @@ function doPost(e) {
         "救護人員簽名狀態",
         "雲端 PDF 檔案連結"
       ]);
-      sheet.getRange(1, 1, 1, 19).setFontWeight("bold").setBackground("#D90429").setFontColor("#FFFFFF");
+      sheet.getRange(1, 1, 1, 21).setFontWeight("bold").setBackground("#0D9488").setFontColor("#FFFFFF");
     }
 
     // 2. 取得或建立 Google Drive 資料夾
@@ -86,8 +88,10 @@ function doPost(e) {
       postData.gender || "",
       postData.age || "",
       postData.conditions || "",
-      postData.dosage || "",
+      postData.dosage || "5",
       postData.route || "",
+      postData.repeatDose || "否",
+      postData.repeatDoseRemark || "",
       postData.vasPre !== undefined ? postData.vasPre : "",
       postData.vasPost !== undefined ? postData.vasPost : "",
       vasDeltaStr,

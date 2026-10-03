@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // State
   let editingRecordId = null; // null for new entry, string ID when editing
+  let confirmedAgeValue = null; // 紀錄已確認過的特殊年齡
 
   // Permanent EMS Unit from localStorage
   const savedUnit = localStorage.getItem('saved_ems_unit') || '光明91';
@@ -25,8 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
     gender: '男',
     age: '',
     conditions: ['VAS 疼痛指數≧6 分'],
-    dosage: '0.5',
+    dosage: '5',
     route: 'IV',
+    repeatDose: '否',
+    repeatDoseRemark: '',
     vasPre: 8,
     vasPost: 3,
     sideEffects: ['無任何副作用'],
@@ -48,6 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const formNoInput = document.getElementById('inputFormNo');
   const ageInput = document.getElementById('inputAge');
   const dosageInput = document.getElementById('inputDosage');
+  const repeatDoseOptions = document.querySelectorAll('#repeatDoseGroup .btn-toggle-option');
+  const repeatDoseRemarkContainer = document.getElementById('repeatDoseRemarkContainer');
+  const inputRepeatDoseRemark = document.getElementById('inputRepeatDoseRemark');
   const sideEffectOtherInput = document.getElementById('inputSideEffectOther');
   const btnNewCase = document.getElementById('btnNewCase');
   
@@ -57,6 +63,50 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingsModal = document.getElementById('settingsModal');
   const historyModal = document.getElementById('historyModal');
   const gasCodeModal = document.getElementById('gasCodeModal');
+  const warningConfirmModal = document.getElementById('warningConfirmModal');
+
+  // 通用美化提醒確認視窗 (支援 Promise)
+  function showConfirmDialog({ title, message, confirmText = '確認繼續', cancelText = '取消' }) {
+    return new Promise((resolve) => {
+      if (!warningConfirmModal) {
+        // Fallback to window.confirm if modal not present
+        const result = window.confirm(`${title}\n\n${message.replace(/<[^>]+>/g, '')}`);
+        resolve(result);
+        return;
+      }
+
+      const titleEl = document.getElementById('warningModalTitle');
+      const msgEl = document.getElementById('warningModalMsg');
+      const btnConfirm = document.getElementById('btnWarningConfirm');
+      const btnCancel = document.getElementById('btnWarningCancel');
+
+      if (titleEl) titleEl.textContent = title;
+      if (msgEl) msgEl.innerHTML = message;
+      if (btnConfirm) btnConfirm.textContent = confirmText;
+      if (btnCancel) btnCancel.textContent = cancelText;
+
+      const cleanup = () => {
+        warningConfirmModal.classList.remove('open');
+        btnConfirm.removeEventListener('click', onConfirm);
+        btnCancel.removeEventListener('click', onCancel);
+      };
+
+      const onConfirm = () => {
+        cleanup();
+        resolve(true);
+      };
+
+      const onCancel = () => {
+        cleanup();
+        resolve(false);
+      };
+
+      btnConfirm.addEventListener('click', onConfirm);
+      btnCancel.addEventListener('click', onCancel);
+
+      warningConfirmModal.classList.add('open');
+    });
+  }
 
   // Edit Mode Banner Elements
   const editModeBanner = document.getElementById('editModeBanner');
@@ -118,15 +168,86 @@ document.addEventListener('DOMContentLoaded', () => {
     validateFormStatus();
   });
 
+  // 年齡輸入限制：只能是大於 0 的整數
   ageInput.addEventListener('input', () => {
-    formData.age = ageInput.value.trim();
+    let val = ageInput.value.replace(/[^\d]/g, '');
+    if (val.length > 1 && val.startsWith('0')) {
+      val = parseInt(val, 10).toString();
+    }
+    ageInput.value = val;
+    formData.age = val;
     validateFormStatus();
   });
 
+  async function checkAgeWarning(isSubmitting = false) {
+    const rawVal = ageInput.value.trim();
+    if (!rawVal) return true;
+    const ageNum = parseInt(rawVal, 10);
+    if (isNaN(ageNum) || ageNum <= 0) {
+      showToast('年齡只能是大於 0 的整數！', 'warning');
+      ageInput.focus();
+      return false;
+    }
+    if ((ageNum < 18 || ageNum >= 100) && confirmedAgeValue !== ageNum) {
+      const isChild = ageNum < 18;
+      const confirmed = await showConfirmDialog({
+        title: '⚠️ 病患年齡確認提醒',
+        message: `目前填寫之病患年齡為 <strong>${ageNum} 歲</strong>（${isChild ? '小於 18 歲' : '大於或等於 100 歲'}）。<br/><br/>依臨床規範請確認年齡無誤，確認後仍可正常儲存與上傳。請問確認年齡正確並繼續嗎？`,
+        confirmText: '確認正確',
+        cancelText: '重新修改'
+      });
+      if (confirmed) {
+        confirmedAgeValue = ageNum;
+        return true;
+      } else {
+        if (!isSubmitting) ageInput.focus();
+        return false;
+      }
+    }
+    return true;
+  }
+
+  ageInput.addEventListener('blur', () => {
+    checkAgeWarning(false);
+  });
+
+  // 給藥劑量限制：預設 5，只能是大於 0 的整數
+  dosageInput.value = '5';
   dosageInput.addEventListener('input', () => {
-    formData.dosage = dosageInput.value.trim();
+    let val = dosageInput.value.replace(/[^\d]/g, '');
+    if (val.length > 1 && val.startsWith('0')) {
+      val = parseInt(val, 10).toString();
+    }
+    dosageInput.value = val;
+    formData.dosage = val;
     validateFormStatus();
   });
+
+  // 重複給藥 Toggle 事件
+  repeatDoseOptions.forEach(btn => {
+    btn.addEventListener('click', () => {
+      repeatDoseOptions.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      formData.repeatDose = btn.dataset.value;
+
+      if (formData.repeatDose === '是') {
+        if (repeatDoseRemarkContainer) repeatDoseRemarkContainer.style.display = 'block';
+        if (inputRepeatDoseRemark) inputRepeatDoseRemark.focus();
+      } else {
+        if (repeatDoseRemarkContainer) repeatDoseRemarkContainer.style.display = 'none';
+        if (inputRepeatDoseRemark) inputRepeatDoseRemark.value = '';
+        formData.repeatDoseRemark = '';
+      }
+      validateFormStatus();
+    });
+  });
+
+  if (inputRepeatDoseRemark) {
+    inputRepeatDoseRemark.addEventListener('input', () => {
+      formData.repeatDoseRemark = inputRepeatDoseRemark.value.trim();
+      validateFormStatus();
+    });
+  }
 
   initDateTime();
 
@@ -144,6 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function resetFormForNewCase() {
     editingRecordId = null;
+    confirmedAgeValue = null;
     if (editModeBanner) editModeBanner.style.display = 'none';
 
     // 重置病患相關欄位
@@ -165,13 +287,21 @@ document.addEventListener('DOMContentLoaded', () => {
       card.classList.toggle('selected', cb.checked);
     });
 
-    formData.dosage = '0.5';
-    dosageInput.value = '0.5';
+    formData.dosage = '5';
+    dosageInput.value = '5';
 
     formData.route = 'IV';
     document.querySelectorAll('#routeGroup .btn-toggle-option').forEach(b => {
       b.classList.toggle('active', b.dataset.value === 'IV');
     });
+
+    formData.repeatDose = '否';
+    formData.repeatDoseRemark = '';
+    repeatDoseOptions.forEach(b => {
+      b.classList.toggle('active', b.dataset.value === '否');
+    });
+    if (repeatDoseRemarkContainer) repeatDoseRemarkContainer.style.display = 'none';
+    if (inputRepeatDoseRemark) inputRepeatDoseRemark.value = '';
 
     formData.vasPre = 8;
     formData.vasPost = 3;
@@ -193,7 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
       card.classList.toggle('active', card.dataset.value === formData.satisfaction);
     });
 
-    // 重置病患簽名與救護人員簽名 (不保留救護員簽名)
+    // 重置病患簽名與救護人員簽名 (每次皆需手動簽名，不自動帶入)
     formData.patientSignature = '';
     resetSignatureBoxUI('patientSigBox', '病患 / 家屬簽名', 'fa-pen-fancy');
 
@@ -249,6 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!container) return;
     const scoreDisplay = container.querySelector('.vas-score-display');
     const buttonsContainer = container.querySelector('.vas-buttons');
+    const isPreVas = containerId === 'vasPreContainer';
     
     buttonsContainer.innerHTML = '';
     for (let i = 0; i <= 10; i++) {
@@ -257,7 +388,20 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.className = `vas-btn ${i === initialScore ? 'active' : ''}`;
       btn.textContent = i;
       
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
+        // 給藥前 VAS 若主動選擇小於 6 分，跳提醒確認視窗
+        if (isPreVas && i < 6 && formData.vasPre !== i) {
+          const confirmed = await showConfirmDialog({
+            title: '⚠️ 給藥前 VAS 疼痛指數提醒',
+            message: `依 Nalbuphine 適應條件標準，給藥前 VAS 疼痛指數建議 <strong>≧ 6 分</strong>。<br/><br/>您目前主動選擇為 <strong>${i} 分</strong>，確定要設定此分數嗎？<br/><span style="color:#0D9488; font-size:12px;">（確認後仍可繼續評估並正常儲存上傳）</span>`,
+            confirmText: '確定選擇',
+            cancelText: '取消'
+          });
+          if (!confirmed) {
+            return; // 使用者按取消，維持原分數
+          }
+        }
+
         buttonsContainer.querySelectorAll('.vas-btn').forEach(b => {
           b.classList.remove('active');
           b.style.backgroundColor = ''; 
@@ -680,8 +824,22 @@ document.addEventListener('DOMContentLoaded', () => {
     ageInput.value = data.age || '';
     formData.age = data.age || '';
 
-    dosageInput.value = data.dosage || '0.5';
-    formData.dosage = data.dosage || '0.5';
+    dosageInput.value = data.dosage || '5';
+    formData.dosage = data.dosage || '5';
+
+    formData.repeatDose = data.repeatDose || '否';
+    formData.repeatDoseRemark = data.repeatDoseRemark || '';
+    repeatDoseOptions.forEach(b => {
+      b.classList.toggle('active', b.dataset.value === formData.repeatDose);
+    });
+    if (repeatDoseRemarkContainer) {
+      repeatDoseRemarkContainer.style.display = formData.repeatDose === '是' ? 'block' : 'none';
+    }
+    if (inputRepeatDoseRemark) {
+      inputRepeatDoseRemark.value = formData.repeatDoseRemark;
+    }
+
+    confirmedAgeValue = parseInt(data.age, 10) || null;
 
     formData.gender = data.gender || '男';
     document.querySelectorAll('#genderGroup .btn-toggle-option').forEach(b => {
@@ -753,11 +911,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Pre-submission Preview Trigger
-  document.getElementById('btnTriggerPreview').addEventListener('click', () => {
+  document.getElementById('btnTriggerPreview').addEventListener('click', async () => {
     formData.unit = unitInput ? unitInput.value.trim() : (localStorage.getItem('saved_ems_unit') || '光明91');
     formData.formNo = formNoInput.value.trim();
     formData.age = ageInput.value.trim();
-    formData.dosage = dosageInput.value.trim() || '0.5';
+    formData.dosage = dosageInput.value.trim() || '5';
     formData.sideEffectOther = sideEffectOtherInput.value.trim();
 
     if (!formData.unit) {
@@ -769,6 +927,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!formData.formNo) {
       showToast('請填寫救護紀錄表單號！', 'warning');
       formNoInput.focus();
+      return;
+    }
+
+    // 年齡檢核：必須為大於 0 的整數
+    const ageNum = parseInt(formData.age, 10);
+    if (!formData.age || isNaN(ageNum) || ageNum <= 0) {
+      showToast('年齡只能是大於 0 的整數！', 'warning');
+      ageInput.focus();
+      return;
+    }
+
+    const ageOk = await checkAgeWarning(true);
+    if (!ageOk) return;
+
+    // 給藥劑量檢核：必須為大於 0 的整數
+    const doseNum = parseInt(formData.dosage, 10);
+    if (isNaN(doseNum) || doseNum <= 0) {
+      showToast('給藥劑量只能是大於 0 的整數 (例如 5 或 10)！', 'warning');
+      dosageInput.focus();
       return;
     }
 
