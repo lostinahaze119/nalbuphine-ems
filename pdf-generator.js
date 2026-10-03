@@ -152,33 +152,39 @@ class NalbuphinePdfGenerator {
 
     // Wait for all signature images inside elementToCapture to fully render
     const images = elementToCapture.querySelectorAll('img');
-    const imagePromises = Array.from(images).map(img => {
+    await Promise.all(Array.from(images).map(img => {
       if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
       return new Promise(resolve => {
         img.onload = resolve;
         img.onerror = resolve;
       });
-    });
-    await Promise.all(imagePromises);
+    }));
 
-    // Wait for layout engine
-    await new Promise(r => setTimeout(r, 200));
+    // Wait 300ms for layout & canvas rasterization
+    await new Promise(r => setTimeout(r, 300));
 
     let base64 = '';
-    if (window.html2pdf) {
-      const opt = {
-        margin:       [5, 5, 5, 5],
-        filename:     'form.pdf',
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false, allowTaint: true },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
-      };
-      
-      const pdfDataUri = await window.html2pdf().set(opt).from(elementToCapture).outputPdf('datauristring');
-      if (pdfDataUri && pdfDataUri.includes(',')) {
-        base64 = pdfDataUri.split(',')[1];
+    try {
+      if (window.html2pdf) {
+        const opt = {
+          margin:       [5, 5, 5, 5],
+          filename:     'form.pdf',
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2, useCORS: true, logging: false, allowTaint: true },
+          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+        };
+        
+        // Correct html2pdf chain with .toPdf().output('datauristring')
+        const worker = window.html2pdf().set(opt).from(elementToCapture);
+        const pdfDataUri = await worker.toPdf().output('datauristring');
+        
+        if (pdfDataUri && pdfDataUri.includes(',')) {
+          base64 = pdfDataUri.split(',')[1];
+        }
       }
+    } catch (e) {
+      console.error('Error generating PDF Base64:', e);
     }
 
     if (tempWrapper && tempWrapper.parentNode) {
