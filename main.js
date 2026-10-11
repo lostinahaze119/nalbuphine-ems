@@ -643,7 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sec5Valid = formData.vasPre !== undefined && formData.vasPost !== undefined;
     const sec6Valid = formData.sideEffects && formData.sideEffects.length > 0;
     const sec7Valid = !!formData.satisfaction;
-    const sec8Valid = !!(formData.patientSignature && formData.emtSignature);
+    const sec8Valid = !!formData.emtSignature; // 救護員必簽，病患未簽在送出前跳提醒但允許送出
 
     setSectionBadge('cardSec1', 'statusBadgeSec1', sec1Valid, sec1Valid ? '完成' : '必填');
     setSectionBadge('cardSec2', 'statusBadgeSec2', sec2Valid, sec2Valid ? '完成' : '必填');
@@ -654,12 +654,10 @@ document.addEventListener('DOMContentLoaded', () => {
     setSectionBadge('cardSec7', 'statusBadgeSec7', sec7Valid, sec7Valid ? '完成' : '完成');
 
     let sigBadgeLabel = '簽名完成';
-    if (!formData.patientSignature && !formData.emtSignature) {
-      sigBadgeLabel = '簽名未完成 (雙方未簽)';
+    if (!formData.emtSignature) {
+      sigBadgeLabel = '未完成 (缺救護員簽名)';
     } else if (!formData.patientSignature) {
-      sigBadgeLabel = '簽名未完成 (缺病患簽名)';
-    } else if (!formData.emtSignature) {
-      sigBadgeLabel = '簽名未完成 (缺救護簽名)';
+      sigBadgeLabel = '可送出 (病患未簽)';
     }
     setSectionBadge('cardSec8', 'statusBadgeSec8', sec8Valid, sigBadgeLabel);
 
@@ -950,9 +948,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (!formData.patientSignature) {
-      showToast('請完成「病患簽名」！', 'warning');
-      openSignatureModal('patient');
-      return;
+      const proceedWithoutPatientSig = confirm(
+        '【提醒】「病患 / 家屬簽名欄」目前尚未簽名。\n\n' +
+        '※ 臨床若因病患意識改變、嚴重創傷劇痛或無法簽名之情況，可點擊【確定】直接送出；\n' +
+        '※ 若需補簽，請點擊【取消】進行簽名。\n\n' +
+        '是否確定不簽名直接送出？'
+      );
+      if (!proceedWithoutPatientSig) {
+        openSignatureModal('patient');
+        return;
+      }
+      showToast('提醒：病患簽名欄未簽名，已確認送出。', 'warning');
     }
 
     if (!formData.emtSignature) {

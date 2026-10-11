@@ -62,8 +62,11 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label">救護紀錄表單號 <span style="color:#EF4444;">*</span></label>
-            <input type="text" id="inputFormNo" class="form-control" placeholder="例：7777777" required />
+            <label class="form-label">救護紀錄表單號 <span style="color:#EF4444;">*</span> <span style="font-size:12px; color:#0D9488; font-weight:600; margin-left:4px;">(請使用TEMSIS編號)</span></label>
+            <input type="text" id="inputFormNo" class="form-control" placeholder="請輸入 TEMSIS 編號（例如：1130101001）" required />
+            <div style="font-size: 11px; color: var(--slate-muted); margin-top: 3px; display: flex; align-items: center; gap: 4px;">
+              <i class="fas fa-info-circle" style="color: #0D9488;"></i> 備註：請使用 TEMSIS 編號
+            </div>
           </div>
         </div>
 
@@ -281,7 +284,7 @@
         <div class="signature-grid">
           <div class="signature-box-container">
             <div class="signature-box-header">
-              <label class="form-label">病患 / 家屬簽名 <span style="color:#EF4444;">*</span></label>
+              <label class="form-label">病患 / 家屬簽名 <span style="font-size:12px; color:var(--slate-muted); font-weight:normal;">(未簽名送出前將跳提醒確認)</span></label>
               <button type="button" class="btn-clear-sig" id="btnDeletePatientSig">
                 <i class="fas fa-trash-alt"></i> 清除簽名
               </button>
