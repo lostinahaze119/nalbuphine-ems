@@ -1317,19 +1317,72 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================
   // 平板專用智慧連動工具組 (Tablet Smart Linkage Tools)
   // ==========================================
+  function isValidTemsisNumber(str) {
+    if (!str || typeof str !== 'string') return false;
+    str = str.trim();
+    // 1. 絕對不能以 0 開頭 (嚴格排除 091029102983 這類時間/表格座標拼接或電話號碼)
+    if (str.startsWith('0')) return false;
+    // 2. 必須以西元 202x~203x 或民國 11x 開頭
+    if (!/^(?:20[2-3]\d|11\d)/.test(str)) return false;
+    // 3. 排除明確為分隊內部派遣案號 (例如 20260904081345004001 結尾為 004001，且不含 101008 機關碼)
+    if (/00\d{4}$/.test(str) && !str.includes('101008')) return false;
+    // 4. 長度必須為 15~22 碼
+    if (str.length < 10 || str.length > 22) return false;
+    return true;
+  }
+
   function extractTemsisNumber(text) {
     if (!text) return null;
-    // 1. 20 碼標準 TEMSIS 編號 (如: 20260701095250005001)
-    const m20 = text.match(/\b(20\d{18})\b/);
-    if (m20) return m20[1];
 
-    // 2. 10~14 碼民國年 TEMSIS 編號 (如: 1130101001 / 1150701...)
-    const mRoc = text.match(/\b(11\d{8,12})\b/);
-    if (mRoc) return mRoc[1];
+    const normalizedText = text.replace(/[\r\n]+/g, ' ');
 
-    // 3. 通用 10~22 碼數字編號
-    const mDigits = text.match(/\b(\d{10,22})\b/);
-    if (mDigits) return mDigits[1];
+    // 優先級 1：直接緊接在 "TEMSIS編號"、"TEMSIS" 標籤之後或之前的數字
+    // 範例：TEMSIS編號: 20260904101008081345
+    const mAfter = normalizedText.match(/(?:TEMSIS|temsis)(?:編號)?\s*[:：\s]\s*([0-9]{15,22})/i);
+    if (mAfter && isValidTemsisNumber(mAfter[1])) {
+      return mAfter[1];
+    }
+
+    // 範例：20260904101008081345 TEMSIS編號
+    const mBefore = normalizedText.match(/([0-9]{15,22})\s*(?:TEMSIS|temsis)(?:編號)?/i);
+    if (mBefore && isValidTemsisNumber(mBefore[1])) {
+      return mBefore[1];
+    }
+
+    // 優先級 2：在 "TEMSIS" 關鍵字前後 250 字元視窗內搜尋
+    const temsisPos = normalizedText.toUpperCase().indexOf('TEMSIS');
+    if (temsisPos !== -1) {
+      const windowStr = normalizedText.substring(Math.max(0, temsisPos - 200), Math.min(normalizedText.length, temsisPos + 300));
+      const windowCands = windowStr.match(/\b(20[2-3]\d{17}|11\d{8,14})\b/g) || [];
+      
+      // 2a. 優先找包含新竹縣 TEMSIS 專屬局碼 101008 的號碼
+      for (const c of windowCands) {
+        if (c.includes('101008') && isValidTemsisNumber(c)) return c;
+      }
+      // 2b. 排除 004001、005001 派遣案號
+      for (const c of windowCands) {
+        if (isValidTemsisNumber(c) && !/00\d{4}$/.test(c)) return c;
+      }
+    }
+
+    // 優先級 3：全局搜尋 20 碼候選號，鎖定包含 101008 (TEMSIS 機關代碼)
+    const all20Cands = normalizedText.match(/\b(20[2-3]\d{17})\b/g) || [];
+    const agencyCands = all20Cands.filter(c => c.includes('101008') && isValidTemsisNumber(c));
+    if (agencyCands.length > 0) {
+      return agencyCands[0];
+    }
+
+    // 優先級 4：全局搜尋中，排除明確的內部派遣編號 (如 20260904081345004001 結尾為 004001)
+    const validNonDispatch = all20Cands.filter(c => isValidTemsisNumber(c) && !/00\d{4}$/.test(c));
+    if (validNonDispatch.length > 0) {
+      return validNonDispatch[0];
+    }
+
+    // 優先級 5：民國年編號
+    const rocCands = (normalizedText.match(/\b(11\d{8,14})\b/g) || []).filter(c => isValidTemsisNumber(c));
+    if (rocCands.length > 0) {
+      return rocCands[0];
+    }
 
     return null;
   }
@@ -1340,8 +1393,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const yyyy = temsisNo.substr(0, 4);
       const mm = temsisNo.substr(4, 2);
       const dd = temsisNo.substr(6, 2);
-      const hh = temsisNo.substr(8, 2);
-      const min = temsisNo.substr(10, 2);
+      // In TEMSIS 20-digit number (YYYYMMDD 101008 HHMMSS)
+      let hh = temsisNo.substr(8, 2);
+      let min = temsisNo.substr(10, 2);
+      if (temsisNo.includes('101008')) {
+        hh = temsisNo.substr(14, 2);
+        min = temsisNo.substr(16, 2);
+      }
       return { date: `${yyyy}-${mm}-${dd}`, time: `${hh}:${min}` };
     }
     return null;
@@ -1380,9 +1438,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
           }
           const text = await navigator.clipboard.readText();
-          const cleanNo = extractTemsisNumber(text) || text.trim();
+          const cleanNo = extractTemsisNumber(text) || (isValidTemsisNumber(text.trim()) ? text.trim() : null);
           if (!cleanNo) {
-            showToast('剪貼簿目前沒有內容，請先在救護表長按複製單號', 'warning');
+            showToast('剪貼簿中未偵測到標準 TEMSIS 編號，請先在救護表長按複製', 'warning');
             return;
           }
 
@@ -1390,7 +1448,7 @@ document.addEventListener('DOMContentLoaded', () => {
           playBeepSound();
           if (navigator.vibrate) try { navigator.vibrate([60, 40, 60]); } catch (e) {}
 
-          showToast(`📋 已從剪貼簿智慧帶入單號：${cleanNo}`, 'success');
+          showToast(`📋 已從剪貼簿智慧帶入 TEMSIS 單號：${cleanNo}`, 'success');
           if (clipboardBanner) clipboardBanner.style.display = 'none';
         } catch (err) {
           showToast('無法讀取剪貼簿，請點選單號框直接貼上', 'warning');
@@ -1416,7 +1474,7 @@ document.addEventListener('DOMContentLoaded', () => {
               applyFormNumber(detectedNo, true);
               playBeepSound();
               if (navigator.vibrate) try { navigator.vibrate([60, 40, 60]); } catch (e) {}
-              showToast(`✨ 已一鍵帶入救護單號：${detectedNo}`, 'success');
+              showToast(`✨ 已一鍵帶入 TEMSIS 單號：${detectedNo}`, 'success');
               clipboardBanner.style.display = 'none';
             };
           }
@@ -1438,9 +1496,18 @@ document.addEventListener('DOMContentLoaded', () => {
           // Try PDF.js if available
           if (typeof pdfjsLib !== 'undefined') {
             try {
-              pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+              if (typeof pdfjsWorker !== 'undefined') {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+              } else {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+              }
               const arrayBuffer = await file.arrayBuffer();
-              const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+              const loadingTask = pdfjsLib.getDocument({
+                data: arrayBuffer,
+                isEvalSupported: false,
+                useWorkerFetch: false
+              });
+              const pdfDoc = await loadingTask.promise;
               const page = await pdfDoc.getPage(1);
               const content = await page.getTextContent();
               fullText = content.items.map(item => item.str).join(' ');
@@ -1449,23 +1516,103 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          // If PDF.js didn't extract or failed, fallback to filename or raw text
-          let detectedNo = extractTemsisNumber(file.name) || extractTemsisNumber(fullText);
-          if (!detectedNo) {
-            const rawText = await file.text();
-            detectedNo = extractTemsisNumber(rawText);
-          }
+          // 1. 萃取 TEMSIS 單號 (嚴格優先 TEMSIS編號，排除派遣案號與雜字)
+          let detectedNo = extractTemsisNumber(fullText) || extractTemsisNumber(file.name);
 
           if (!detectedNo) {
-            showToast('未在該 PDF 中辨識到標準 TEMSIS 編號', 'warning');
+            showToast('⚠️ 未在該 PDF 中找到標準 TEMSIS 編號 (如: 2026...101008...)', 'warning');
             return;
           }
 
           applyFormNumber(detectedNo, true);
+
+          // 2. 智慧萃取其他欄位 (性別、年齡、給藥時間、VAS、劑量與途徑)
+          const importedItems = [];
+
+          // 性別：優先透過身分證字號第二碼判定 (1為男, 2為女)，若無則依勾選標記
+          const mId = fullText.match(/\b[A-Z]([12])\d{8}\b/);
+          let detectedGender = null;
+          if (mId) {
+            detectedGender = mId[1] === '1' ? '男' : '女';
+          } else if (/[Vv✓✔■☑]\s*女|女\s*[Vv✓✔■☑]/.test(fullText)) {
+            detectedGender = '女';
+          } else if (/[Vv✓✔■☑]\s*男|男\s*[Vv✓✔■☑]/.test(fullText)) {
+            detectedGender = '男';
+          }
+          if (detectedGender) {
+            formData.gender = detectedGender;
+            document.querySelectorAll('#genderGroup .btn-toggle-option').forEach(b => {
+              b.classList.toggle('active', b.dataset.value === detectedGender);
+            });
+            importedItems.push(`性別：${detectedGender}`);
+          }
+
+          // 年齡：優先從身分證旁緊接之數字或 "歲" 辨識
+          const mAge = fullText.match(/\b[A-Z][12]\d{8}\s*(\d{1,3})\b/) || fullText.match(/(\d{1,3})\s*歲/) || fullText.match(/年齡\D{0,10}(\d{1,3})/);
+          if (mAge) {
+            const ageVal = mAge[1];
+            formData.age = ageVal;
+            ageInput.value = ageVal;
+            confirmedAgeValue = parseInt(ageVal, 10);
+            importedItems.push(`年齡：${ageVal}歲`);
+          }
+
+          // 給藥時間 (優先從給藥欄讀取，例如 08:33 或 0833 Bain)
+          let drugTimeVal = null;
+          const mDrugTime1 = fullText.match(/(\d{2}:\d{2})\s+.*(?:IM|IV|SC|其他)/i) || fullText.match(/時間\s+藥名\s+途徑\/劑量\s+(\d{2}:\d{2})/);
+          const mDrugTime2 = fullText.match(/(\d{2})(\d{2})\s+Bain/i);
+          if (mDrugTime1) {
+            drugTimeVal = mDrugTime1[1];
+          } else if (mDrugTime2) {
+            drugTimeVal = `${mDrugTime2[1]}:${mDrugTime2[2]}`;
+          }
+          if (drugTimeVal) {
+            timeInput.value = drugTimeVal;
+            formData.time = drugTimeVal;
+            updateDateTimeState();
+            importedItems.push(`給藥時間：${drugTimeVal}`);
+          }
+
+          // 疼痛指數 (VAS)
+          const mVas = fullText.match(/疼痛指數\s*[:：]?\s*(\d{1,2})\s*分/) || 
+                       fullText.match(/VAS\D*(\d{1,2})/i) ||
+                       fullText.match(/疼痛\D*([0-9]|10)\s*分?/) ||
+                       fullText.match(/4[、,\.\s\D]{1,15}\D*([1-9]|10)[分\?]/);
+          if (mVas) {
+            const vasScore = Math.min(10, Math.max(0, parseInt(mVas[1], 10)));
+            formData.vasPre = vasScore;
+            setupVasScale('vasPreContainer', vasScore, (s) => { formData.vasPre = s; });
+            calculateVasDelta();
+            importedItems.push(`給藥前VAS：${vasScore}分`);
+          }
+
+          // 給藥途徑與劑量 (IM / 5mg)
+          if (/\bIM\b/i.test(fullText)) {
+            formData.route = 'IM';
+            document.querySelectorAll('#routeGroup .btn-toggle-option').forEach(b => {
+              b.classList.toggle('active', b.dataset.value === 'IM');
+            });
+            importedItems.push('途徑：IM');
+          } else if (/\bIV\b/i.test(fullText)) {
+            formData.route = 'IV';
+            document.querySelectorAll('#routeGroup .btn-toggle-option').forEach(b => {
+              b.classList.toggle('active', b.dataset.value === 'IV');
+            });
+            importedItems.push('途徑：IV');
+          }
+
+          const mDose = fullText.match(/(?:IM\s*\/|Bain\s*|途徑\/劑量\s*.*?)(\d{1,2}(?:\.\d+)?)\s*mg/i) || fullText.match(/\b([1-9]|10|20)\s*mg\b/i);
+          if (mDose) {
+            formData.dosage = mDose[1];
+            dosageInput.value = mDose[1];
+            importedItems.push(`劑量：${mDose[1]}mg`);
+          }
+
           playBeepSound();
           if (navigator.vibrate) try { navigator.vibrate([80, 50, 80]); } catch (e) {}
 
-          showToast(`🎉 成功從救護表 PDF 匯入單號 [${detectedNo}] 與出勤時間！`, 'success');
+          validateFormStatus();
+          showToast(`🎉 成功帶入 TEMSIS 單號 [${detectedNo}]！${importedItems.length > 0 ? ` (自動辨識 ${importedItems.join('、')})` : ''}`, 'success');
         } catch (err) {
           console.error('PDF import error:', err);
           showToast('讀取 PDF 發生錯誤：' + err.message, 'warning');
@@ -1481,11 +1628,11 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       const text = e.dataTransfer.getData('text');
       if (text) {
-        const cleanNo = extractTemsisNumber(text) || text.trim();
+        const cleanNo = extractTemsisNumber(text) || (isValidTemsisNumber(text.trim()) ? text.trim() : null);
         if (cleanNo) {
           applyFormNumber(cleanNo, true);
           playBeepSound();
-          showToast(`已拖曳填入單號：${cleanNo}`, 'success');
+          showToast(`已拖曳填入 TEMSIS 單號：${cleanNo}`, 'success');
         }
       }
     });
