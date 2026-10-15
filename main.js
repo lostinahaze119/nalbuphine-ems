@@ -1314,6 +1314,211 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Initialize Barcode Scanner
+  // ==========================================
+  // 平板專用智慧連動工具組 (Tablet Smart Linkage Tools)
+  // ==========================================
+  function extractTemsisNumber(text) {
+    if (!text) return null;
+    // 1. 20 碼標準 TEMSIS 編號 (如: 20260701095250005001)
+    const m20 = text.match(/\b(20\d{18})\b/);
+    if (m20) return m20[1];
+
+    // 2. 10~14 碼民國年 TEMSIS 編號 (如: 1130101001 / 1150701...)
+    const mRoc = text.match(/\b(11\d{8,12})\b/);
+    if (mRoc) return mRoc[1];
+
+    // 3. 通用 10~22 碼數字編號
+    const mDigits = text.match(/\b(\d{10,22})\b/);
+    if (mDigits) return mDigits[1];
+
+    return null;
+  }
+
+  function parseTemsisDateTime(temsisNo) {
+    if (!temsisNo) return null;
+    if (/^20\d{18}$/.test(temsisNo)) {
+      const yyyy = temsisNo.substr(0, 4);
+      const mm = temsisNo.substr(4, 2);
+      const dd = temsisNo.substr(6, 2);
+      const hh = temsisNo.substr(8, 2);
+      const min = temsisNo.substr(10, 2);
+      return { date: `${yyyy}-${mm}-${dd}`, time: `${hh}:${min}` };
+    }
+    return null;
+  }
+
+  function applyFormNumber(num, shouldSyncDateTime = true) {
+    if (!num) return;
+    formNoInput.value = num;
+    formData.formNo = num;
+
+    if (shouldSyncDateTime) {
+      const dt = parseTemsisDateTime(num);
+      if (dt) {
+        dateInput.value = dt.date;
+        timeInput.value = dt.time;
+        updateDateTimeState();
+      }
+    }
+    validateFormStatus();
+  }
+
+  function initTabletSmartTools() {
+    const btnSmartPaste = document.getElementById('btnSmartPaste');
+    const pdfImportInput = document.getElementById('pdfImportInput');
+    const clipboardBanner = document.getElementById('clipboardDetectBanner');
+    const clipboardDetectedNo = document.getElementById('clipboardDetectedNo');
+    const btnApplyClipboard = document.getElementById('btnApplyClipboard');
+
+    // 1. 一鍵智慧貼上 (Smart Paste)
+    if (btnSmartPaste) {
+      btnSmartPaste.addEventListener('click', async () => {
+        try {
+          if (!navigator.clipboard || !navigator.clipboard.readText) {
+            showToast('請直接點選單號框長按貼上', 'warning');
+            formNoInput.focus();
+            return;
+          }
+          const text = await navigator.clipboard.readText();
+          const cleanNo = extractTemsisNumber(text) || text.trim();
+          if (!cleanNo) {
+            showToast('剪貼簿目前沒有內容，請先在救護表長按複製單號', 'warning');
+            return;
+          }
+
+          applyFormNumber(cleanNo, true);
+          playBeepSound();
+          if (navigator.vibrate) try { navigator.vibrate([60, 40, 60]); } catch (e) {}
+
+          showToast(`📋 已從剪貼簿智慧帶入單號：${cleanNo}`, 'success');
+          if (clipboardBanner) clipboardBanner.style.display = 'none';
+        } catch (err) {
+          showToast('無法讀取剪貼簿，請點選單號框直接貼上', 'warning');
+          formNoInput.focus();
+        }
+      });
+    }
+
+    // 2. 切換回網頁自動偵測剪貼簿 (Window Focus Auto-detect)
+    let lastCheckedClipboard = '';
+    window.addEventListener('focus', async () => {
+      if (!navigator.clipboard || !navigator.clipboard.readText) return;
+      try {
+        const text = await navigator.clipboard.readText();
+        const detectedNo = extractTemsisNumber(text);
+        if (detectedNo && detectedNo !== formData.formNo && detectedNo !== lastCheckedClipboard) {
+          lastCheckedClipboard = detectedNo;
+          if (clipboardBanner && clipboardDetectedNo && btnApplyClipboard) {
+            clipboardDetectedNo.textContent = detectedNo;
+            clipboardBanner.style.display = 'flex';
+
+            btnApplyClipboard.onclick = () => {
+              applyFormNumber(detectedNo, true);
+              playBeepSound();
+              if (navigator.vibrate) try { navigator.vibrate([60, 40, 60]); } catch (e) {}
+              showToast(`✨ 已一鍵帶入救護單號：${detectedNo}`, 'success');
+              clipboardBanner.style.display = 'none';
+            };
+          }
+        }
+      } catch (e) {
+        // Safe to ignore clipboard access restriction
+      }
+    });
+
+    // 3. 匯入救護紀錄表 PDF 自動辨識 (PDF Import Auto-fill)
+    if (pdfImportInput) {
+      pdfImportInput.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        showToast('正在解析救護紀錄表 PDF...');
+
+        try {
+          let fullText = '';
+          // Try PDF.js if available
+          if (typeof pdfjsLib !== 'undefined') {
+            try {
+              pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+              const arrayBuffer = await file.arrayBuffer();
+              const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+              const page = await pdfDoc.getPage(1);
+              const content = await page.getTextContent();
+              fullText = content.items.map(item => item.str).join(' ');
+            } catch (pdfErr) {
+              console.warn('PDF.js textContent error:', pdfErr);
+            }
+          }
+
+          // If PDF.js didn't extract or failed, fallback to filename or raw text
+          let detectedNo = extractTemsisNumber(file.name) || extractTemsisNumber(fullText);
+          if (!detectedNo) {
+            const rawText = await file.text();
+            detectedNo = extractTemsisNumber(rawText);
+          }
+
+          if (!detectedNo) {
+            showToast('未在該 PDF 中辨識到標準 TEMSIS 編號', 'warning');
+            return;
+          }
+
+          applyFormNumber(detectedNo, true);
+          playBeepSound();
+          if (navigator.vibrate) try { navigator.vibrate([80, 50, 80]); } catch (e) {}
+
+          showToast(`🎉 成功從救護表 PDF 匯入單號 [${detectedNo}] 與出勤時間！`, 'success');
+        } catch (err) {
+          console.error('PDF import error:', err);
+          showToast('讀取 PDF 發生錯誤：' + err.message, 'warning');
+        } finally {
+          pdfImportInput.value = '';
+        }
+      });
+    }
+
+    // 4. iPad 分割畫面文字 / 檔案拖曳 (Drag & Drop)
+    formNoInput.addEventListener('dragover', (e) => e.preventDefault());
+    formNoInput.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const text = e.dataTransfer.getData('text');
+      if (text) {
+        const cleanNo = extractTemsisNumber(text) || text.trim();
+        if (cleanNo) {
+          applyFormNumber(cleanNo, true);
+          playBeepSound();
+          showToast(`已拖曳填入單號：${cleanNo}`, 'success');
+        }
+      }
+    });
+
+    // 5. URL 參數預填 (URL Query String Pre-fill)
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryNo = urlParams.get('formNo') || urlParams.get('no') || urlParams.get('case');
+      if (queryNo) {
+        applyFormNumber(queryNo, true);
+        showToast(`已從網址參數自動帶入單號：${queryNo}`, 'success');
+      }
+      const queryUnit = urlParams.get('unit');
+      if (queryUnit && unitInput) {
+        unitInput.value = queryUnit;
+        formData.unit = queryUnit;
+      }
+      const queryAge = urlParams.get('age');
+      if (queryAge && ageInput) {
+        ageInput.value = queryAge;
+        formData.age = queryAge;
+      }
+      const queryGender = urlParams.get('gender');
+      if (queryGender) {
+        formData.gender = queryGender;
+        document.querySelectorAll('#genderGroup .btn-toggle-option').forEach(b => {
+          b.classList.toggle('active', b.dataset.value === queryGender);
+        });
+      }
+    } catch (e) {}
+  }
+
+  // Initialize Barcode Scanner & Tablet Smart Tools
   initBarcodeScanner();
+  initTabletSmartTools();
 });

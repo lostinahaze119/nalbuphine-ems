@@ -821,6 +821,140 @@ canvas.signature-canvas {
    Barcode Scanner UI & Unable-to-Sign Custom Controls
    ========================================================================== */
 
+/* Tablet Smart Tools for Form Number */
+.form-no-input-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.form-no-tools {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.btn-tool-action {
+  height: 46px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: var(--transition-fast);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.btn-tool-action.btn-paste {
+  background: #F0FDF4;
+  color: #166534;
+  border-color: #BBF7D0;
+  box-shadow: 0 2px 6px rgba(22, 101, 52, 0.08);
+}
+.btn-tool-action.btn-paste:hover {
+  background: #DCFCE7;
+  border-color: #86EFAC;
+  transform: translateY(-1px);
+}
+
+.btn-tool-action.btn-import-pdf {
+  background: #EFF6FF;
+  color: #1E40AF;
+  border-color: #BFDBFE;
+  box-shadow: 0 2px 6px rgba(30, 64, 175, 0.08);
+  margin: 0;
+}
+.btn-tool-action.btn-import-pdf:hover {
+  background: #DBEAFE;
+  border-color: #93C5FD;
+  transform: translateY(-1px);
+}
+
+.btn-tool-action.btn-camera {
+  background: #F1F5F9;
+  color: #475569;
+  border-color: #CBD5E1;
+}
+.btn-tool-action.btn-camera:hover {
+  background: #E2E8F0;
+  border-color: #94A3B8;
+  transform: translateY(-1px);
+}
+
+/* Clipboard Auto-detect Notification Banner */
+.clipboard-detect-banner {
+  margin-top: 8px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, #ECFDF5 0%, #F0FDFA 100%);
+  border: 1.5px solid #2DD4BF;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  animation: slideDown 0.3s ease;
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.1);
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.clipboard-detect-banner .banner-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #0F766E;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clipboard-detect-banner .magic-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #CCFBF1;
+  color: #0D9488;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.btn-apply-clipboard {
+  background: #0D9488;
+  color: #FFFFFF;
+  border: none;
+  padding: 5px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-apply-clipboard:hover {
+  background: #0F766E;
+  transform: translateY(-1px);
+}
+
 /* Barcode Scanner Action Button */
 .btn-scan-barcode {
   background: linear-gradient(135deg, #0D9488 0%, #0284C7 100%);

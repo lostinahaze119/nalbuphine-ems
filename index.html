@@ -62,16 +62,41 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label">救護紀錄表單號 <span style="color:#EF4444;">*</span> <span style="font-size:12px; color:#0D9488; font-weight:600; margin-left:4px;">(請使用TEMSIS編號)</span></label>
-            <div class="input-with-action">
-              <input type="text" id="inputFormNo" class="form-control" placeholder="請輸入或掃描 TEMSIS 單號" style="flex: 1;" required />
-              <button type="button" id="btnScanBarcode" class="btn-scan-barcode" title="開啟相機掃描紙本條碼">
-                <i class="fas fa-camera"></i>
-                <span>掃描條碼</span>
+            <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap;">
+              <label class="form-label" style="margin-bottom:0;">救護紀錄表單號 <span style="color:#EF4444;">*</span> <span style="font-size:12px; color:#0D9488; font-weight:600; margin-left:4px;">(請使用TEMSIS編號)</span></label>
+            </div>
+            <div class="input-with-action form-no-input-group">
+              <input type="text" id="inputFormNo" class="form-control" placeholder="輸入單號、貼上、或匯入紀錄表 PDF" style="flex: 1; min-width: 170px;" required />
+              <div class="form-no-tools">
+                <button type="button" id="btnSmartPaste" class="btn-tool-action btn-paste" title="從平板剪貼簿一鍵貼上單號">
+                  <i class="fas fa-paste"></i>
+                  <span>貼上</span>
+                </button>
+                <label class="btn-tool-action btn-import-pdf" title="匯入救護紀錄表 PDF 自動辨識帶入單號與時間">
+                  <i class="fas fa-file-pdf"></i>
+                  <span>匯入PDF</span>
+                  <input type="file" id="pdfImportInput" accept="application/pdf" style="display: none;" />
+                </label>
+                <button type="button" id="btnScanBarcode" class="btn-tool-action btn-camera" title="開啟相機掃描紙本條碼">
+                  <i class="fas fa-camera"></i>
+                  <span>相機</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 平板切換 App 智慧自動偵測剪貼簿提示 -->
+            <div id="clipboardDetectBanner" class="clipboard-detect-banner" style="display: none;">
+              <div class="banner-left">
+                <span class="magic-icon"><i class="fas fa-magic"></i></span>
+                <span>偵測到剪貼簿中的救護單號：<strong id="clipboardDetectedNo"></strong></span>
+              </div>
+              <button type="button" id="btnApplyClipboard" class="btn-apply-clipboard">
+                <i class="fas fa-check"></i> 一鍵帶入
               </button>
             </div>
+
             <div style="font-size: 11px; color: var(--slate-muted); margin-top: 3px; display: flex; align-items: center; gap: 4px;">
-              <i class="fas fa-info-circle" style="color: #0D9488;"></i> 備註：請使用 TEMSIS 編號（可點擊相機圖示自動掃描條碼謄入）
+              <i class="fas fa-info-circle" style="color: #0D9488;"></i> 平板專用：在紀錄表複製後點【貼上】，或直接【匯入PDF】秒填單號與出勤時間！
             </div>
           </div>
         </div>
@@ -780,6 +805,7 @@ function getOrCreateSpreadsheet(sheetName) {
   </div>
 
   <!-- JavaScript App Modules -->
+  <script src="pdf.min.js"></script>
   <script src="html5-qrcode.min.js"></script>
   <script src="signature-pad.js"></script>
   <script src="google-sync.js"></script>
