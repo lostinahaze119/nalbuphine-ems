@@ -1421,6 +1421,118 @@ document.addEventListener('DOMContentLoaded', () => {
     validateFormStatus();
   }
 
+  // ==========================================
+  // 右側中間「給藥」專屬欄位智慧萃取 (Drug Administration Table Extractor)
+  // 以救護紀錄表右側中間「給藥」標籤及其下方「時間」欄位為最高基準
+  // ==========================================
+  function extractDrugAdministrationInfo(pdfItems, fullText) {
+    const result = { time: null, route: null, dose: null };
+
+    // 1. 空間座標精準鎖定 (適用於 PDF.js 解析物件，最精確且不失真)
+    // 救護紀錄表橫向A4尺寸約 842x595 點，右側中段「給藥」區塊特徵：
+    // X 座標落在 380~550 之間，Y 座標落在 200~350 之間
+    if (Array.isArray(pdfItems) && pdfItems.length > 0) {
+      const timeHeaders = pdfItems.filter(it => {
+        const str = (it.str || '').trim();
+        if (!str.includes('時間')) return false;
+        const x = it.transform ? it.transform[4] : (it.x || 0);
+        const y = it.transform ? it.transform[5] : (it.y || 0);
+        return x > 380 && x < 550 && y >= 200 && y <= 350;
+      });
+
+      for (const th of timeHeaders) {
+        const thX = th.transform ? th.transform[4] : th.x;
+        const thY = th.transform ? th.transform[5] : th.y;
+
+        // 檢查同一水平線 (Y 差距在 8 點內) 是否有「藥名」或「途徑/劑量」
+        const hasNeighbor = pdfItems.some(it => {
+          const str = (it.str || '').trim();
+          const x = it.transform ? it.transform[4] : (it.x || 0);
+          const y = it.transform ? it.transform[5] : (it.y || 0);
+          return Math.abs(y - thY) <= 8 && x > thX && (str.includes('藥名') || str.includes('途徑') || str.includes('劑量'));
+        });
+
+        if (hasNeighbor || timeHeaders.length === 1) {
+          // 向下方直接鎖定時間數值 (X 誤差 35 點以內，Y 在下方 4~35 點)
+          const timeCandidates = pdfItems.filter(it => {
+            const str = (it.str || '').trim();
+            const x = it.transform ? it.transform[4] : (it.x || 0);
+            const y = it.transform ? it.transform[5] : (it.y || 0);
+            const deltaX = Math.abs(x - thX);
+            const deltaY = thY - y;
+            return deltaX <= 35 && deltaY >= 4 && deltaY <= 35 && /^\d{1,2}:\d{2}$/.test(str);
+          });
+
+          if (timeCandidates.length > 0) {
+            const raw = timeCandidates[0].str.trim();
+            const parts = raw.split(':');
+            result.time = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+          }
+
+          // 同列 (Y 在下方 4~35 點) 尋找途徑與劑量 (例如 IM/5mg)
+          const routeCandidates = pdfItems.filter(it => {
+            const str = (it.str || '').trim();
+            const x = it.transform ? it.transform[4] : (it.x || 0);
+            const y = it.transform ? it.transform[5] : (it.y || 0);
+            const deltaY = thY - y;
+            return x > thX + 40 && deltaY >= 4 && deltaY <= 35 && /(?:IM|IV|SC|mg)/i.test(str);
+          });
+
+          if (routeCandidates.length > 0) {
+            const rStr = routeCandidates[0].str.trim();
+            if (/\bIM\b/i.test(rStr)) result.route = 'IM';
+            else if (/\bIV\b/i.test(rStr)) result.route = 'IV';
+            const mD = rStr.match(/(\d{1,2}(?:\.\d+)?)\s*mg/i);
+            if (mD) result.dose = mD[1];
+          }
+
+          if (result.time) break;
+        }
+      }
+    }
+
+    // 2. 文字串流 / OCR 順序備援 (適用於純文字或剪貼簿)
+    if (!result.time && fullText) {
+      const cleanText = fullText.replace(/[\r\n]+/g, ' ');
+
+      // 優先級 2A：鎖定「給」與「藥」字樣之後緊接之「時間」欄位下方的時間
+      const mGeiyao = cleanText.match(/給[\s\S]{0,10}藥[\s\S]{0,120}?時間[\s\S]{0,60}?(\d{1,2}:\d{2})/);
+      if (mGeiyao) {
+        const parts = mGeiyao[1].split(':');
+        result.time = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+      } else {
+        // 優先級 2B：表格欄位標題接續：「時間 藥名 途徑/劑量 08:33」
+        const mTbl = cleanText.match(/時間[\s\S]{0,25}?藥名[\s\S]{0,25}?(?:途徑|劑量)?[\s\S]{0,30}?(\d{1,2}:\d{2})/);
+        if (mTbl) {
+          const parts = mTbl[1].split(':');
+          result.time = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+        } else {
+          // 優先級 2C：直接在「給藥」之後 150 字元內尋找時間
+          const mGeiyaoDirect = cleanText.match(/給[\s\S]{0,10}藥[\s\S]{0,150}?(\d{1,2}:\d{2})/);
+          if (mGeiyaoDirect) {
+            const parts = mGeiyaoDirect[1].split(':');
+            result.time = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+          } else {
+            // 優先級 2D：時間接續途徑/劑量 (例如 08:33 其他 IM/5mg)
+            const mRoute = cleanText.match(/(\d{1,2}:\d{2})\s+(?:其他|[^\d\s]{1,10})\s+(?:IM|IV|SC)/i);
+            if (mRoute) {
+              const parts = mRoute[1].split(':');
+              result.time = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+            } else {
+              // 優先級 2E：備註欄記載 (例如 0833 Bain 5mg)
+              const mRem = cleanText.match(/(?:備註|備註欄)?[\s\S]{0,40}?(\d{2})(\d{2})\s*(?:Bain|止痛|IM|IV)/i);
+              if (mRem) {
+                result.time = `${mRem[1]}:${mRem[2]}`;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return result;
+  }
+
   function initTabletSmartTools() {
     const btnSmartPaste = document.getElementById('btnSmartPaste');
     const pdfImportInput = document.getElementById('pdfImportInput');
@@ -1444,11 +1556,17 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
           }
 
-          applyFormNumber(cleanNo, true);
+          const drugInfo = extractDrugAdministrationInfo([], text);
+          applyFormNumber(cleanNo, !drugInfo.time);
+          if (drugInfo.time) {
+            timeInput.value = drugInfo.time;
+            formData.time = drugInfo.time;
+            updateDateTimeState();
+          }
           playBeepSound();
           if (navigator.vibrate) try { navigator.vibrate([60, 40, 60]); } catch (e) {}
 
-          showToast(`📋 已從剪貼簿智慧帶入 TEMSIS 單號：${cleanNo}`, 'success');
+          showToast(`📋 已從剪貼簿智慧帶入 TEMSIS 單號：${cleanNo}${drugInfo.time ? ` 與給藥時間：${drugInfo.time}` : ''}`, 'success');
           if (clipboardBanner) clipboardBanner.style.display = 'none';
         } catch (err) {
           showToast('無法讀取剪貼簿，請點選單號框直接貼上', 'warning');
@@ -1493,6 +1611,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
           let fullText = '';
+          let pdfItems = [];
           // Try PDF.js if available
           if (typeof pdfjsLib !== 'undefined') {
             try {
@@ -1510,7 +1629,8 @@ document.addEventListener('DOMContentLoaded', () => {
               const pdfDoc = await loadingTask.promise;
               const page = await pdfDoc.getPage(1);
               const content = await page.getTextContent();
-              fullText = content.items.map(item => item.str).join(' ');
+              pdfItems = content.items || [];
+              fullText = pdfItems.map(item => item.str).join(' ');
             } catch (pdfErr) {
               console.warn('PDF.js textContent error:', pdfErr);
             }
@@ -1524,10 +1644,32 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
           }
 
-          applyFormNumber(detectedNo, true);
+          // 2. 優先萃取右側中間「給藥」標籤下方「時間」欄位 (最高基準，例如 08:33)
+          const drugAdminInfo = extractDrugAdministrationInfo(pdfItems, fullText);
+          const drugTimeVal = drugAdminInfo.time;
 
-          // 2. 智慧萃取其他欄位 (性別、年齡、給藥時間、VAS、劑量與途徑)
+          // 3. 填入 TEMSIS 單號與出勤日期，時間以「給藥」欄位之數值為最高基準
+          applyFormNumber(detectedNo, false);
+          const dt = parseTemsisDateTime(detectedNo);
+          if (dt) {
+            dateInput.value = dt.date;
+            formData.date = dt.date;
+          }
+          if (drugTimeVal) {
+            timeInput.value = drugTimeVal;
+            formData.time = drugTimeVal;
+            updateDateTimeState();
+          } else if (dt) {
+            timeInput.value = dt.time;
+            formData.time = dt.time;
+            updateDateTimeState();
+          }
+
+          // 4. 智慧萃取其他欄位 (性別、年齡、給藥時間、VAS、劑量與途徑)
           const importedItems = [];
+          if (drugTimeVal) {
+            importedItems.push(`給藥時間：${drugTimeVal} (依「給藥」欄位基準)`);
+          }
 
           // 性別：優先透過身分證字號第二碼判定 (1為男, 2為女)，若無則依勾選標記
           const mId = fullText.match(/\b[A-Z]([12])\d{8}\b/);
@@ -1557,22 +1699,6 @@ document.addEventListener('DOMContentLoaded', () => {
             importedItems.push(`年齡：${ageVal}歲`);
           }
 
-          // 給藥時間 (優先從給藥欄讀取，例如 08:33 或 0833 Bain)
-          let drugTimeVal = null;
-          const mDrugTime1 = fullText.match(/(\d{2}:\d{2})\s+.*(?:IM|IV|SC|其他)/i) || fullText.match(/時間\s+藥名\s+途徑\/劑量\s+(\d{2}:\d{2})/);
-          const mDrugTime2 = fullText.match(/(\d{2})(\d{2})\s+Bain/i);
-          if (mDrugTime1) {
-            drugTimeVal = mDrugTime1[1];
-          } else if (mDrugTime2) {
-            drugTimeVal = `${mDrugTime2[1]}:${mDrugTime2[2]}`;
-          }
-          if (drugTimeVal) {
-            timeInput.value = drugTimeVal;
-            formData.time = drugTimeVal;
-            updateDateTimeState();
-            importedItems.push(`給藥時間：${drugTimeVal}`);
-          }
-
           // 疼痛指數 (VAS)
           const mVas = fullText.match(/疼痛指數\s*[:：]?\s*(\d{1,2})\s*分/) || 
                        fullText.match(/VAS\D*(\d{1,2})/i) ||
@@ -1586,26 +1712,23 @@ document.addEventListener('DOMContentLoaded', () => {
             importedItems.push(`給藥前VAS：${vasScore}分`);
           }
 
-          // 給藥途徑與劑量 (IM / 5mg)
-          if (/\bIM\b/i.test(fullText)) {
-            formData.route = 'IM';
+          // 給藥途徑與劑量 (優先使用右側「給藥」表格解析之 IM/5mg)
+          const detectedRoute = drugAdminInfo.route || (/\bIM\b/i.test(fullText) ? 'IM' : (/\bIV\b/i.test(fullText) ? 'IV' : null));
+          if (detectedRoute) {
+            formData.route = detectedRoute;
             document.querySelectorAll('#routeGroup .btn-toggle-option').forEach(b => {
-              b.classList.toggle('active', b.dataset.value === 'IM');
+              b.classList.toggle('active', b.dataset.value === detectedRoute);
             });
-            importedItems.push('途徑：IM');
-          } else if (/\bIV\b/i.test(fullText)) {
-            formData.route = 'IV';
-            document.querySelectorAll('#routeGroup .btn-toggle-option').forEach(b => {
-              b.classList.toggle('active', b.dataset.value === 'IV');
-            });
-            importedItems.push('途徑：IV');
+            importedItems.push(`途徑：${detectedRoute}`);
           }
 
-          const mDose = fullText.match(/(?:IM\s*\/|Bain\s*|途徑\/劑量\s*.*?)(\d{1,2}(?:\.\d+)?)\s*mg/i) || fullText.match(/\b([1-9]|10|20)\s*mg\b/i);
-          if (mDose) {
-            formData.dosage = mDose[1];
-            dosageInput.value = mDose[1];
-            importedItems.push(`劑量：${mDose[1]}mg`);
+          const detectedDose = drugAdminInfo.dose || 
+                               (fullText.match(/(?:IM\s*\/|Bain\s*|途徑\/劑量\s*.*?)(\d{1,2}(?:\.\d+)?)\s*mg/i) || 
+                                fullText.match(/\b([1-9]|10|20)\s*mg\b/i) || [])[1];
+          if (detectedDose) {
+            formData.dosage = detectedDose;
+            dosageInput.value = detectedDose;
+            importedItems.push(`劑量：${detectedDose}mg`);
           }
 
           playBeepSound();
@@ -1630,9 +1753,15 @@ document.addEventListener('DOMContentLoaded', () => {
       if (text) {
         const cleanNo = extractTemsisNumber(text) || (isValidTemsisNumber(text.trim()) ? text.trim() : null);
         if (cleanNo) {
-          applyFormNumber(cleanNo, true);
+          const drugInfo = extractDrugAdministrationInfo([], text);
+          applyFormNumber(cleanNo, !drugInfo.time);
+          if (drugInfo.time) {
+            timeInput.value = drugInfo.time;
+            formData.time = drugInfo.time;
+            updateDateTimeState();
+          }
           playBeepSound();
-          showToast(`已拖曳填入 TEMSIS 單號：${cleanNo}`, 'success');
+          showToast(`已拖曳填入 TEMSIS 單號：${cleanNo}${drugInfo.time ? ` 與給藥時間：${drugInfo.time}` : ''}`, 'success');
         }
       }
     });
