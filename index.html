@@ -177,10 +177,41 @@
           <span class="section-status-badge valid" id="statusBadgeSec4"><i class="fas fa-check-circle"></i> 完成</span>
         </h2>
 
+        <!-- 新竹縣 Nalbuphine 藥品規格與智慧防呆設定條 -->
+        <div class="nalbuphine-spec-card" style="background: rgba(13, 148, 136, 0.06); border: 1.5px solid rgba(13, 148, 136, 0.22); border-radius: 12px; padding: 10px 14px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span style="background: #0D9488; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.5px;">新竹縣規格</span>
+            <span style="font-size: 13px; font-weight: 700; color: var(--slate-dark);">1 安瓿 = 1 ml (10 mg/ml)</span>
+            <span style="font-size: 12px; color: var(--slate-muted);">｜ 常規：IV 5mg · IM 3~5mg</span>
+          </div>
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--teal-dark); cursor: pointer; user-select: none; margin: 0;">
+            <input type="checkbox" id="toggleAutoCorrectDose" checked style="accent-color: #0D9488; cursor: pointer; width: 16px; height: 16px;" />
+            <span>ml/mg 智慧換算與筆誤防呆</span>
+          </label>
+        </div>
+
         <div class="grid-3" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px;">
           <div class="form-group">
-            <label class="form-label">給藥劑量 (mg) <span style="color:#EF4444;">*</span></label>
-            <input type="number" id="inputDosage" class="form-control" value="5" min="1" step="1" placeholder="例：5" required />
+            <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>給藥劑量 (mg) <span style="color:#EF4444;">*</span></span>
+              <span id="dosageVolumeEq" style="font-size: 12px; font-weight: 600; color: var(--teal-dark); background: #F0FDFA; padding: 1px 6px; border-radius: 4px; border: 1px solid #CCFBF1;">＝ 0.5 ml</span>
+            </label>
+            <div style="position: relative;">
+              <input type="text" id="inputDosage" class="form-control" value="5" placeholder="例：5 或 0.5ml" inputmode="decimal" required />
+            </div>
+
+            <!-- 自動換算/筆誤修正提示標籤 -->
+            <div id="dosageCorrectionBadge" style="display: none; margin-top: 6px; font-size: 12px; color: #0D9488; font-weight: 600; align-items: center; gap: 5px; background: #F0FDFA; padding: 5px 8px; border-radius: 6px; border: 1px solid #CCFBF1;">
+              <i class="fas fa-magic"></i> <span id="dosageCorrectionMsg"></span>
+            </div>
+
+            <!-- 常用劑量快速膠囊 (Quick Dose Chips) -->
+            <div class="quick-dose-chips" style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
+              <button type="button" class="btn-dose-chip active" data-dose="5" data-route="IV" title="靜脈注射標準劑量 5mg (0.5ml)">IV 5mg <span style="font-size:10px; opacity:0.8;">(0.5ml)</span></button>
+              <button type="button" class="btn-dose-chip" data-dose="3" data-route="IM" title="肌肉注射輕量 3mg (0.3ml)">IM 3mg <span style="font-size:10px; opacity:0.8;">(0.3ml)</span></button>
+              <button type="button" class="btn-dose-chip" data-dose="4" data-route="IM" title="肌肉注射中量 4mg (0.4ml)">IM 4mg <span style="font-size:10px; opacity:0.8;">(0.4ml)</span></button>
+              <button type="button" class="btn-dose-chip" data-dose="5" data-route="IM" title="肌肉注射足量 5mg (0.5ml)">IM 5mg <span style="font-size:10px; opacity:0.8;">(0.5ml)</span></button>
+            </div>
           </div>
 
           <div class="form-group">
@@ -442,6 +473,21 @@
           <span style="font-size:12px; color:var(--slate-muted); margin-top:6px;">
             請貼上您的 Google Apps Script Web App 部署網址，系統送出時會自動寫入 Google 試算表並將 PDF 存入 Google Drive 資料夾。
           </span>
+        </div>
+
+        <!-- 新竹縣 Nalbuphine 規格設定 -->
+        <div style="background:#F8FAFC; padding:14px; border-radius:12px; margin-top:14px; border:1px solid #E2E8F0;">
+          <h4 style="font-size:14px; color:var(--slate-dark); margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+            <i class="fas fa-prescription-bottle-alt" style="color:#0D9488;"></i> 新竹縣 Nalbuphine 藥品規格與防呆設定
+          </h4>
+          <p style="font-size:12px; color:var(--slate-muted); line-height:1.6; margin-bottom:10px;">
+            新竹縣 Nalbuphine (痛平) 每安瓿規格為 <strong>10mg / 1ml</strong>。<br>
+            現場常規指引：<strong>IM 3~5mg (0.3~0.5ml) · IV 5mg (0.5ml)</strong>。
+          </p>
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:var(--teal-dark); cursor:pointer;">
+            <input type="checkbox" id="modalToggleAutoCorrectDose" checked style="accent-color:#0D9488; width:16px; height:16px; cursor:pointer;" />
+            <span>啟用 ml ↔ mg 智慧換算與筆誤自動校正 (例如 5ml、0.5mg、0.5ml 自動校正為 5mg)</span>
+          </label>
         </div>
 
         <div style="background:#F0FDFA; padding:16px; border-radius:12px; margin-top:16px; border:1px solid #99F6E4;">

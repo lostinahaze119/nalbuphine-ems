@@ -214,16 +214,246 @@ document.addEventListener('DOMContentLoaded', () => {
     checkAgeWarning(false);
   });
 
-  // 給藥劑量限制：預設 5，只能是大於 0 的整數
-  dosageInput.value = '5';
-  dosageInput.addEventListener('input', () => {
-    let val = dosageInput.value.replace(/[^\d]/g, '');
-    if (val.length > 1 && val.startsWith('0')) {
-      val = parseInt(val, 10).toString();
+  // ==========================================
+  // 新竹縣 Nalbuphine 藥品規格與劑量防呆換算系統
+  // 規格：1 安瓿 = 1 ml = 10 mg (10 mg/ml)
+  // 常規指引：IM 3~5 mg (0.3~0.5 ml) | IV 5 mg (0.5 ml)
+  // ==========================================
+  const toggleAutoCorrectDose = document.getElementById('toggleAutoCorrectDose');
+  const modalToggleAutoCorrectDose = document.getElementById('modalToggleAutoCorrectDose');
+  const dosageVolumeEq = document.getElementById('dosageVolumeEq');
+  const dosageCorrectionBadge = document.getElementById('dosageCorrectionBadge');
+  const dosageCorrectionMsg = document.getElementById('dosageCorrectionMsg');
+  const doseChips = document.querySelectorAll('.btn-dose-chip');
+
+  function isAutoDoseCorrectEnabled() {
+    const val = localStorage.getItem('nalbuphine_auto_correct_dose');
+    return val === null ? true : val === 'true';
+  }
+
+  function setAutoDoseCorrectEnabled(enabled) {
+    localStorage.setItem('nalbuphine_auto_correct_dose', enabled ? 'true' : 'false');
+    if (toggleAutoCorrectDose) toggleAutoCorrectDose.checked = enabled;
+    if (modalToggleAutoCorrectDose) modalToggleAutoCorrectDose.checked = enabled;
+  }
+
+  if (toggleAutoCorrectDose) {
+    toggleAutoCorrectDose.checked = isAutoDoseCorrectEnabled();
+    toggleAutoCorrectDose.addEventListener('change', () => {
+      setAutoDoseCorrectEnabled(toggleAutoCorrectDose.checked);
+      handleDosageCorrection(true);
+    });
+  }
+
+  if (modalToggleAutoCorrectDose) {
+    modalToggleAutoCorrectDose.checked = isAutoDoseCorrectEnabled();
+    modalToggleAutoCorrectDose.addEventListener('change', () => {
+      setAutoDoseCorrectEnabled(modalToggleAutoCorrectDose.checked);
+      handleDosageCorrection(true);
+    });
+  }
+
+  function cleanAndCorrectNalbuphineDosage(rawInput, routeHint) {
+    if (rawInput === undefined || rawInput === null || String(rawInput).trim() === '') {
+      return { dose: '5', note: null, volumeMl: '0.5' };
     }
-    dosageInput.value = val;
-    formData.dosage = val;
+
+    const raw = String(rawInput).trim();
+    const isAutoCorrect = isAutoDoseCorrectEnabled();
+
+    // 若使用者關閉防呆，則僅提取數字
+    if (!isAutoCorrect) {
+      const match = raw.match(/([0-9]+(?:\.[0-9]+)?)/);
+      const dose = match ? match[1] : '5';
+      const vol = (parseFloat(dose) / 10).toFixed(1).replace(/\.0$/, '');
+      return { dose, note: null, volumeMl: vol };
+    }
+
+    const lower = raw.toLowerCase();
+
+    // 1. 中文安瓿俗名支援 (半支、半安瓿、整支、一支)
+    if (/(?:半支|半安瓿|半管|0\.5支)/.test(lower)) {
+      return { dose: '5', note: '「半安瓿 (0.5ml)」已自動換算為 5mg', volumeMl: '0.5' };
+    }
+    if (/(?:整支|整管|1支|一支|1安瓿)/.test(lower)) {
+      return { dose: '10', note: '「1安瓿 (1.0ml)」已換算為 10mg', volumeMl: '1.0' };
+    }
+
+    // 2. 明確標示 ml 或 c.c. 單位換算與筆誤防呆 (例如 0.5ml, 5ml, 0.3ml)
+    const mMl = lower.match(/([0-9]+(?:\.[0-9]+)?)\s*(?:ml|c\.?c\.?)/);
+    if (mMl) {
+      const v = parseFloat(mMl[1]);
+      // 筆誤防呆：新竹縣 1 安瓿僅 1ml，若打成 5ml 相當於 50mg (5支)，顯係筆誤打成 5mg (0.5ml)
+      if (v === 5.0) {
+        return { dose: '5', note: '筆誤「5ml」已自動校正為 5mg (相當於 0.5ml)', volumeMl: '0.5' };
+      }
+      if (v === 3.0) {
+        return { dose: '3', note: '筆誤「3ml」已自動校正為 3mg (相當於 0.3ml)', volumeMl: '0.3' };
+      }
+      if (v === 4.0) {
+        return { dose: '4', note: '筆誤「4ml」已自動校正為 4mg (相當於 0.4ml)', volumeMl: '0.4' };
+      }
+      if (v === 10.0) {
+        return { dose: '10', note: '筆誤「10ml」已自動校正為 10mg (1安瓿 1.0ml)', volumeMl: '1.0' };
+      }
+
+      // 標準 ml 換算為 mg (x 10)
+      const mgVal = Math.round(v * 10 * 10) / 10;
+      const doseStr = Number.isInteger(mgVal) ? String(mgVal) : String(mgVal);
+      const volStr = v.toFixed(1).replace(/\.0$/, '');
+      return { 
+        dose: doseStr, 
+        note: `「${mMl[1]}ml」已依新竹縣規格 (10mg/ml) 自動換算為 ${doseStr}mg`, 
+        volumeMl: volStr 
+      };
+    }
+
+    // 3. 明確標示 mg 單位筆誤防呆 (例如 0.5mg 實為 0.5ml = 5mg)
+    const mMg = lower.match(/([0-9]+(?:\.[0-9]+)?)\s*mg/);
+    if (mMg) {
+      const v = parseFloat(mMg[1]);
+      // 筆誤防呆：0.5mg 僅 0.05ml，無止痛療效，顯為 0.5ml (5mg) 之筆誤
+      if (v === 0.5) {
+        return { dose: '5', note: '筆誤「0.5mg」已自動校正為 5mg (相當於 0.5ml)', volumeMl: '0.5' };
+      }
+      if (v === 0.3) {
+        return { dose: '3', note: '筆誤「0.3mg」已自動校正為 3mg (相當於 0.3ml)', volumeMl: '0.3' };
+      }
+      if (v === 0.4) {
+        return { dose: '4', note: '筆誤「0.4mg」已自動校正為 4mg (相當於 0.4ml)', volumeMl: '0.4' };
+      }
+      if (v < 1.0 && v > 0) {
+        const mgVal = Math.round(v * 10 * 10) / 10;
+        const doseStr = Number.isInteger(mgVal) ? String(mgVal) : String(mgVal);
+        return { 
+          dose: doseStr, 
+          note: `筆誤「${mMg[1]}mg」已自動校正為 ${doseStr}mg (相當於 ${v}ml)`, 
+          volumeMl: String(v) 
+        };
+      }
+      const doseStr = Number.isInteger(v) ? String(v) : String(v);
+      const volStr = (v / 10).toFixed(1).replace(/\.0$/, '');
+      return { dose: doseStr, note: null, volumeMl: volStr };
+    }
+
+    // 4. 純數字輸入（無單位）
+    const mNum = lower.match(/([0-9]+(?:\.[0-9]+)?)/);
+    if (mNum) {
+      const v = parseFloat(mNum[1]);
+      // 小數（例如 0.5、0.3、0.4）：臨床上輸入小數必為 ml，自動換算為 mg
+      if (v < 1.0 && v > 0) {
+        const mgVal = Math.round(v * 10 * 10) / 10;
+        const doseStr = Number.isInteger(mgVal) ? String(mgVal) : String(mgVal);
+        return { 
+          dose: doseStr, 
+          note: `數值「${mNum[1]}」依體積(ml)自動換算為 ${doseStr}mg`, 
+          volumeMl: String(v) 
+        };
+      }
+
+      // 整數（例如 3, 4, 5, 10）
+      const doseStr = Number.isInteger(v) ? String(v) : String(v);
+      const volStr = (v / 10).toFixed(1).replace(/\.0$/, '');
+      return { dose: doseStr, note: null, volumeMl: volStr };
+    }
+
+    return { dose: '5', note: null, volumeMl: '0.5' };
+  }
+
+  function updateDoseChipsActive() {
+    doseChips.forEach(chip => {
+      const cDose = chip.dataset.dose;
+      const cRoute = chip.dataset.route;
+      const isMatch = (cDose === formData.dosage && cRoute === formData.route);
+      chip.classList.toggle('active', isMatch);
+    });
+  }
+
+  function handleDosageCorrection(showToastIfCorrected = false) {
+    const raw = dosageInput.value.trim();
+    if (!raw) return;
+    const res = cleanAndCorrectNalbuphineDosage(raw, formData.route);
+    dosageInput.value = res.dose;
+    formData.dosage = res.dose;
+
+    if (dosageVolumeEq) {
+      dosageVolumeEq.textContent = `＝ ${res.volumeMl} ml`;
+    }
+
+    if (res.note && dosageCorrectionBadge && dosageCorrectionMsg) {
+      dosageCorrectionMsg.textContent = res.note;
+      dosageCorrectionBadge.style.display = 'inline-flex';
+      if (showToastIfCorrected) {
+        showToast(`💡 ${res.note}`, 'info');
+      }
+    } else if (dosageCorrectionBadge) {
+      dosageCorrectionBadge.style.display = 'none';
+    }
+
+    updateDoseChipsActive();
     validateFormStatus();
+  }
+
+  // 初始給藥劑量設定：預設 5mg
+  dosageInput.value = '5';
+  formData.dosage = '5';
+  updateDoseChipsActive();
+
+  dosageInput.addEventListener('input', () => {
+    // 輸入過程中即時更新體積預覽
+    const raw = dosageInput.value.trim();
+    const m = raw.match(/([0-9]+(?:\.[0-9]+)?)/);
+    if (m && dosageVolumeEq) {
+      const v = parseFloat(m[1]);
+      if (v < 1.0) {
+        dosageVolumeEq.textContent = `＝ ${v} ml (換算 ${Math.round(v * 10)}mg)`;
+      } else {
+        dosageVolumeEq.textContent = `＝ ${(v / 10).toFixed(1).replace(/\.0$/, '')} ml`;
+      }
+    }
+  });
+
+  dosageInput.addEventListener('blur', () => {
+    handleDosageCorrection(true);
+  });
+
+  dosageInput.addEventListener('change', () => {
+    handleDosageCorrection(true);
+  });
+
+  dosageInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      dosageInput.blur();
+    }
+  });
+
+  // 常用劑量膠囊按鈕 (Quick Dose Chips) 點擊事件
+  doseChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      const targetDose = chip.dataset.dose;
+      const targetRoute = chip.dataset.route;
+
+      // 切換途徑
+      formData.route = targetRoute;
+      document.querySelectorAll('#routeGroup .btn-toggle-option').forEach(b => {
+        b.classList.toggle('active', b.dataset.value === targetRoute);
+      });
+
+      // 設定劑量
+      dosageInput.value = targetDose;
+      formData.dosage = targetDose;
+      if (dosageVolumeEq) {
+        dosageVolumeEq.textContent = `＝ ${(parseFloat(targetDose) / 10).toFixed(1).replace(/\.0$/, '')} ml`;
+      }
+      if (dosageCorrectionBadge) {
+        dosageCorrectionBadge.style.display = 'none';
+      }
+
+      updateDoseChipsActive();
+      playBeepSound();
+      validateFormStatus();
+    });
   });
 
   // 重複給藥 Toggle 事件
@@ -292,11 +522,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     formData.dosage = '5';
     dosageInput.value = '5';
+    if (dosageVolumeEq) dosageVolumeEq.textContent = '＝ 0.5 ml';
+    if (dosageCorrectionBadge) dosageCorrectionBadge.style.display = 'none';
 
     formData.route = 'IV';
     document.querySelectorAll('#routeGroup .btn-toggle-option').forEach(b => {
       b.classList.toggle('active', b.dataset.value === 'IV');
     });
+    updateDoseChipsActive();
 
     formData.repeatDose = '否';
     formData.repeatDoseRemark = '';
@@ -363,6 +596,19 @@ document.addEventListener('DOMContentLoaded', () => {
       routeOptions.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       formData.route = btn.dataset.value;
+
+      // 新竹縣指引連動：IV 常規為 5mg，若先前為 3 或 4mg 則智慧建議為 5mg
+      if (formData.route === 'IV' && (formData.dosage === '3' || formData.dosage === '4')) {
+        formData.dosage = '5';
+        dosageInput.value = '5';
+        if (dosageVolumeEq) dosageVolumeEq.textContent = '＝ 0.5 ml';
+        if (dosageCorrectionBadge && dosageCorrectionMsg) {
+          dosageCorrectionMsg.textContent = '常規靜脈注射 (IV) 標準劑量為 5mg (0.5ml)';
+          dosageCorrectionBadge.style.display = 'inline-flex';
+        }
+      }
+
+      updateDoseChipsActive();
       validateFormStatus();
     });
   });
@@ -882,6 +1128,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     dosageInput.value = data.dosage || '5';
     formData.dosage = data.dosage || '5';
+    if (dosageVolumeEq) {
+      dosageVolumeEq.textContent = `＝ ${(parseFloat(formData.dosage) / 10).toFixed(1).replace(/\.0$/, '')} ml`;
+    }
+    updateDoseChipsActive();
 
     formData.repeatDose = data.repeatDose || '否';
     formData.repeatDoseRemark = data.repeatDoseRemark || '';
@@ -1469,21 +1719,23 @@ document.addEventListener('DOMContentLoaded', () => {
             result.time = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
           }
 
-          // 同列 (Y 在下方 4~35 點) 尋找途徑與劑量 (例如 IM/5mg)
+          // 同列 (Y 在下方 4~35 點) 尋找途徑與劑量 (例如 IM/5mg, 0.5ml, 5ml 等)
           const routeCandidates = pdfItems.filter(it => {
             const str = (it.str || '').trim();
             const x = it.transform ? it.transform[4] : (it.x || 0);
             const y = it.transform ? it.transform[5] : (it.y || 0);
             const deltaY = thY - y;
-            return x > thX + 40 && deltaY >= 4 && deltaY <= 35 && /(?:IM|IV|SC|mg)/i.test(str);
+            return x > thX + 40 && deltaY >= 4 && deltaY <= 35 && /(?:IM|IV|SC|mg|ml)/i.test(str);
           });
 
           if (routeCandidates.length > 0) {
             const rStr = routeCandidates[0].str.trim();
             if (/\bIM\b/i.test(rStr)) result.route = 'IM';
             else if (/\bIV\b/i.test(rStr)) result.route = 'IV';
-            const mD = rStr.match(/(\d{1,2}(?:\.\d+)?)\s*mg/i);
-            if (mD) result.dose = mD[1];
+            const corrected = cleanAndCorrectNalbuphineDosage(rStr, result.route);
+            result.dose = corrected.dose;
+            result.doseNote = corrected.note;
+            result.volumeMl = corrected.volumeMl;
           }
 
           if (result.time) break;
@@ -1722,13 +1974,20 @@ document.addEventListener('DOMContentLoaded', () => {
             importedItems.push(`途徑：${detectedRoute}`);
           }
 
-          const detectedDose = drugAdminInfo.dose || 
-                               (fullText.match(/(?:IM\s*\/|Bain\s*|途徑\/劑量\s*.*?)(\d{1,2}(?:\.\d+)?)\s*mg/i) || 
-                                fullText.match(/\b([1-9]|10|20)\s*mg\b/i) || [])[1];
-          if (detectedDose) {
-            formData.dosage = detectedDose;
-            dosageInput.value = detectedDose;
-            importedItems.push(`劑量：${detectedDose}mg`);
+          const rawDoseMatch = drugAdminInfo.dose || 
+                               (fullText.match(/(?:IM\s*\/|Bain\s*|途徑\/劑量\s*.*?)(\d{1,2}(?:\.\d+)?)\s*(?:mg|ml)/i) || 
+                                fullText.match(/\b([0-9\.]+)\s*(?:mg|ml)\b/i) || [])[1];
+          if (rawDoseMatch) {
+            const corrected = cleanAndCorrectNalbuphineDosage(rawDoseMatch, detectedRoute);
+            formData.dosage = corrected.dose;
+            dosageInput.value = corrected.dose;
+            if (dosageVolumeEq) dosageVolumeEq.textContent = `＝ ${corrected.volumeMl} ml`;
+            if (corrected.note && dosageCorrectionBadge && dosageCorrectionMsg) {
+              dosageCorrectionMsg.textContent = corrected.note;
+              dosageCorrectionBadge.style.display = 'inline-flex';
+            }
+            updateDoseChipsActive();
+            importedItems.push(`劑量：${corrected.dose}mg` + (corrected.note ? ` (${corrected.note})` : ''));
           }
 
           playBeepSound();

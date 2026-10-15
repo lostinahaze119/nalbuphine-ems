@@ -1147,3 +1147,41 @@ canvas.signature-canvas {
   font-weight: 500;
 }
 
+/* Quick Dose Chips & Nalbuphine Spec UI */
+.quick-dose-chips {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-dose-chip {
+  background: #F8FAFC;
+  border: 1.5px solid var(--border-color);
+  color: var(--slate-body);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  white-space: nowrap;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-dose-chip:hover {
+  background: var(--teal-bg);
+  border-color: var(--teal-main);
+  color: var(--teal-dark);
+}
+
+.btn-dose-chip.active {
+  background: linear-gradient(135deg, #0D9488 0%, #0284C7 100%);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25);
+}
+
