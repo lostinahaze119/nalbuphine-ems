@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sideEffectOther: '',
     satisfaction: '非常滿意 (5 分)',
     patientSignature: '',
+    patientUnableToSign: false,
     emtSignature: ''
   };
 
@@ -56,6 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const inputRepeatDoseRemark = document.getElementById('inputRepeatDoseRemark');
   const sideEffectOtherInput = document.getElementById('inputSideEffectOther');
   const btnNewCase = document.getElementById('btnNewCase');
+  const chkPatientUnableToSign = document.getElementById('chkPatientUnableToSign');
+  const lblUnableSign = document.getElementById('lblUnableSign');
   
   // Modals
   const signatureModal = document.getElementById('signatureModal');
@@ -325,6 +328,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 重置病患簽名與救護人員簽名 (每次皆需手動簽名，不自動帶入)
     formData.patientSignature = '';
+    formData.patientUnableToSign = false;
+    if (chkPatientUnableToSign) chkPatientUnableToSign.checked = false;
+    if (lblUnableSign) lblUnableSign.classList.remove('checked');
+    const patientBoxEl = document.getElementById('patientSigBox');
+    if (patientBoxEl) patientBoxEl.classList.remove('unable-to-sign');
     resetSignatureBoxUI('patientSigBox', '病患 / 家屬簽名', 'fa-pen-fancy');
 
     formData.emtSignature = '';
@@ -540,8 +548,53 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 150);
   };
 
+  function updatePatientUnableToSignUI() {
+    const box = document.getElementById('patientSigBox');
+    if (!box) return;
+    if (formData.patientUnableToSign) {
+      box.classList.add('unable-to-sign');
+      box.classList.remove('has-signature');
+      box.innerHTML = `
+        <div class="signature-unable-badge">
+          <div class="unable-icon-wrap"><i class="fas fa-user-slash"></i></div>
+          <div class="unable-main-text">【病患因故無法簽名】</div>
+          <div class="unable-sub-text">(意識改變 / 嚴重創傷劇痛 / 肢體受限等)</div>
+        </div>
+      `;
+    } else {
+      box.classList.remove('unable-to-sign');
+      if (formData.patientSignature) {
+        updateSignatureBoxUI('patientSigBox', formData.patientSignature);
+      } else {
+        resetSignatureBoxUI('patientSigBox', '病患 / 家屬簽名', 'fa-pen-fancy');
+      }
+    }
+  }
+
+  if (chkPatientUnableToSign) {
+    chkPatientUnableToSign.addEventListener('change', () => {
+      formData.patientUnableToSign = chkPatientUnableToSign.checked;
+      if (lblUnableSign) lblUnableSign.classList.toggle('checked', formData.patientUnableToSign);
+
+      if (formData.patientUnableToSign) {
+        formData.patientSignature = '';
+        updatePatientUnableToSignUI();
+        showToast('已註記病患因故無法簽名');
+      } else {
+        updatePatientUnableToSignUI();
+        showToast('已取消因故無法簽名，可點擊手指簽名');
+      }
+      validateFormStatus();
+    });
+  }
+
   document.getElementById('patientSigBox').addEventListener('click', (e) => {
-    if (!e.target.closest('.btn-clear-sig')) openSignatureModal('patient');
+    if (e.target.closest('.btn-clear-sig')) return;
+    if (formData.patientUnableToSign) {
+      showToast('病患已勾選「因故無法簽名」，若欲親筆簽名請先取消勾選方框', 'warning');
+      return;
+    }
+    openSignatureModal('patient');
   });
   document.getElementById('emtSigBox').addEventListener('click', (e) => {
     if (!e.target.closest('.btn-clear-sig')) openSignatureModal('emt');
@@ -551,6 +604,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnDeletePatientSig').addEventListener('click', (e) => {
     e.stopPropagation();
     formData.patientSignature = '';
+    formData.patientUnableToSign = false;
+    if (chkPatientUnableToSign) chkPatientUnableToSign.checked = false;
+    if (lblUnableSign) lblUnableSign.classList.remove('checked');
     resetSignatureBoxUI('patientSigBox', '病患 / 家屬簽名', 'fa-pen-fancy');
     validateFormStatus();
     showToast('病患簽名已重置為空白');
@@ -656,6 +712,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let sigBadgeLabel = '簽名完成';
     if (!formData.emtSignature) {
       sigBadgeLabel = '未完成 (缺救護員簽名)';
+    } else if (formData.patientUnableToSign) {
+      sigBadgeLabel = '完成 (因故無法簽名)';
     } else if (!formData.patientSignature) {
       sigBadgeLabel = '可送出 (病患未簽)';
     }
@@ -878,9 +936,15 @@ document.addEventListener('DOMContentLoaded', () => {
       card.classList.toggle('active', card.dataset.value === formData.satisfaction);
     });
 
+    formData.patientUnableToSign = !!data.patientUnableToSign;
+    if (chkPatientUnableToSign) chkPatientUnableToSign.checked = formData.patientUnableToSign;
+    if (lblUnableSign) lblUnableSign.classList.toggle('checked', formData.patientUnableToSign);
+
     if (data.patientSignature) {
       formData.patientSignature = data.patientSignature;
       updateSignatureBoxUI('patientSigBox', data.patientSignature);
+    } else if (formData.patientUnableToSign) {
+      updatePatientUnableToSignUI();
     } else {
       resetSignatureBoxUI('patientSigBox', '病患 / 家屬簽名', 'fa-pen-fancy');
     }
@@ -947,10 +1011,10 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (!formData.patientSignature) {
+    if (!formData.patientSignature && !formData.patientUnableToSign) {
       const proceedWithoutPatientSig = confirm(
         '【提醒】「病患 / 家屬簽名欄」目前尚未簽名。\n\n' +
-        '※ 臨床若因病患意識改變、嚴重創傷劇痛或無法簽名之情況，可點擊【確定】直接送出；\n' +
+        '※ 臨床若因病患意識改變、嚴重創傷劇痛或無法簽名之情況，可勾選「因故無法簽名」或點擊【確定】直接送出；\n' +
         '※ 若需補簽，請點擊【取消】進行簽名。\n\n' +
         '是否確定不簽名直接送出？'
       );
@@ -1047,4 +1111,209 @@ document.addEventListener('DOMContentLoaded', () => {
       toast.style.opacity = '0';
     }, 3200);
   }
+
+  // ==========================================
+  // 相機條碼掃描模組 (Barcode Scanner Engine)
+  // ==========================================
+  let html5QrScanner = null;
+  let isScanningBarcode = false;
+  let torchEnabled = false;
+
+  function playBeepSound() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1400, ctx.currentTime);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    } catch (e) {}
+  }
+
+  function initBarcodeScanner() {
+    const btnScan = document.getElementById('btnScanBarcode');
+    const modal = document.getElementById('barcodeScannerModal');
+    const btnClose = document.getElementById('btnCloseBarcodeModal');
+    const btnCancel = document.getElementById('btnCancelScan');
+    const btnTorch = document.getElementById('btnToggleTorch');
+    const fileInput = document.getElementById('barcodeFileInput');
+    const statusMsg = document.getElementById('scannerStatusMsg');
+
+    if (!btnScan || !modal) return;
+
+    async function startCameraScanner() {
+      modal.classList.add('open');
+      if (statusMsg) statusMsg.textContent = '正在啟動相機...';
+      if (btnTorch) btnTorch.style.display = 'none';
+      torchEnabled = false;
+
+      if (typeof Html5Qrcode === 'undefined') {
+        if (statusMsg) statusMsg.innerHTML = '⚠️ 掃描模組尚未就緒，請手動輸入單號或點擊「相簿選圖」';
+        return;
+      }
+
+      try {
+        if (!html5QrScanner) {
+          html5QrScanner = new Html5Qrcode("barcodeScannerView", {
+            formatsToSupport: [
+              Html5QrcodeSupportedFormats.CODE_128,
+              Html5QrcodeSupportedFormats.CODE_39,
+              Html5QrcodeSupportedFormats.CODE_93,
+              Html5QrcodeSupportedFormats.CODABAR,
+              Html5QrcodeSupportedFormats.EAN_13,
+              Html5QrcodeSupportedFormats.EAN_8,
+              Html5QrcodeSupportedFormats.UPC_A,
+              Html5QrcodeSupportedFormats.UPC_E,
+              Html5QrcodeSupportedFormats.QR_CODE
+            ],
+            verbose: false
+          });
+        }
+
+        const config = {
+          fps: 15,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const width = Math.min(Math.round(viewfinderWidth * 0.88), 340);
+            const height = Math.min(Math.round(viewfinderHeight * 0.55), 180);
+            return { width, height };
+          },
+          aspectRatio: 1.0,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          }
+        };
+
+        // Try environment/back camera first
+        try {
+          await html5QrScanner.start(
+            { facingMode: { exact: "environment" } },
+            config,
+            onBarcodeSuccess,
+            onBarcodeError
+          );
+        } catch (camErr) {
+          await html5QrScanner.start(
+            { facingMode: "environment" },
+            config,
+            onBarcodeSuccess,
+            onBarcodeError
+          );
+        }
+
+        isScanningBarcode = true;
+        if (statusMsg) statusMsg.textContent = '請將救護紀錄表單號條碼置於框中...';
+
+        // Check torch capability
+        try {
+          const track = html5QrScanner.getRunningTrackCapabilities();
+          if (track && track.torch) {
+            btnTorch.style.display = 'inline-flex';
+          }
+        } catch (e) {}
+
+      } catch (err) {
+        console.warn('Camera start error:', err);
+        if (statusMsg) {
+          statusMsg.innerHTML = `⚠️ 無法開啟相機 (${err.message || '請確認相機權限'})，可改用相簿照片選取`;
+        }
+      }
+    }
+
+    function onBarcodeSuccess(decodedText) {
+      if (!decodedText) return;
+      playBeepSound();
+      if (navigator.vibrate) {
+        try { navigator.vibrate([70, 30, 70]); } catch (e) {}
+      }
+
+      let cleanText = decodedText.trim();
+      // If barcode contains URL parameters, extract ID if possible
+      try {
+        if (cleanText.startsWith('http://') || cleanText.startsWith('https://')) {
+          const url = new URL(cleanText);
+          const params = ['no', 'id', 'num', 'formNo', 'case'];
+          for (const p of params) {
+            if (url.searchParams.get(p)) {
+              cleanText = url.searchParams.get(p).trim();
+              break;
+            }
+          }
+        }
+      } catch (e) {}
+
+      formNoInput.value = cleanText;
+      formData.formNo = cleanText;
+      validateFormStatus();
+
+      showToast(`條碼掃描成功！已帶入單號：${cleanText}`, 'success');
+      stopCameraScanner();
+    }
+
+    function onBarcodeError(errorMessage) {
+      // Per frame scan attempt - silent
+    }
+
+    async function stopCameraScanner() {
+      if (html5QrScanner && isScanningBarcode) {
+        try {
+          await html5QrScanner.stop();
+          html5QrScanner.clear();
+        } catch (e) {}
+        isScanningBarcode = false;
+      }
+      modal.classList.remove('open');
+      if (statusMsg) statusMsg.textContent = '';
+    }
+
+    btnScan.addEventListener('click', startCameraScanner);
+    if (btnClose) btnClose.addEventListener('click', stopCameraScanner);
+    if (btnCancel) btnCancel.addEventListener('click', stopCameraScanner);
+
+    if (btnTorch) {
+      btnTorch.addEventListener('click', async () => {
+        if (!html5QrScanner || !isScanningBarcode) return;
+        try {
+          torchEnabled = !torchEnabled;
+          await html5QrScanner.applyVideoConstraints({
+            advanced: [{ torch: torchEnabled }]
+          });
+          const torchText = document.getElementById('torchBtnText');
+          if (torchText) torchText.textContent = torchEnabled ? '關閉手電筒' : '開啟手電筒';
+        } catch (err) {
+          showToast('此裝置不支援手電筒控制', 'warning');
+        }
+      });
+    }
+
+    if (fileInput) {
+      fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        if (statusMsg) statusMsg.textContent = '正在辨識相片中的條碼...';
+        try {
+          let scanner = html5QrScanner;
+          if (!scanner) {
+            scanner = new Html5Qrcode("barcodeScannerView", { verbose: false });
+          }
+          const decodedText = await scanner.scanFile(file, true);
+          onBarcodeSuccess(decodedText);
+        } catch (err) {
+          if (statusMsg) statusMsg.textContent = '⚠️ 相片中未辨識出清晰條碼，請換一張或重試';
+          showToast('未辨識出條碼，請確認條碼清晰完整', 'warning');
+        } finally {
+          fileInput.value = '';
+        }
+      });
+    }
+  }
+
+  // Initialize Barcode Scanner
+  initBarcodeScanner();
 });

@@ -63,9 +63,15 @@
 
           <div class="form-group">
             <label class="form-label">救護紀錄表單號 <span style="color:#EF4444;">*</span> <span style="font-size:12px; color:#0D9488; font-weight:600; margin-left:4px;">(請使用TEMSIS編號)</span></label>
-            <input type="text" id="inputFormNo" class="form-control" placeholder="請輸入 TEMSIS 編號（例如：1130101001）" required />
+            <div class="input-with-action">
+              <input type="text" id="inputFormNo" class="form-control" placeholder="請輸入或掃描 TEMSIS 單號" style="flex: 1;" required />
+              <button type="button" id="btnScanBarcode" class="btn-scan-barcode" title="開啟相機掃描紙本條碼">
+                <i class="fas fa-camera"></i>
+                <span>掃描條碼</span>
+              </button>
+            </div>
             <div style="font-size: 11px; color: var(--slate-muted); margin-top: 3px; display: flex; align-items: center; gap: 4px;">
-              <i class="fas fa-info-circle" style="color: #0D9488;"></i> 備註：請使用 TEMSIS 編號
+              <i class="fas fa-info-circle" style="color: #0D9488;"></i> 備註：請使用 TEMSIS 編號（可點擊相機圖示自動掃描條碼謄入）
             </div>
           </div>
         </div>
@@ -284,7 +290,13 @@
         <div class="signature-grid">
           <div class="signature-box-container">
             <div class="signature-box-header">
-              <label class="form-label">病患 / 家屬簽名 <span style="font-size:12px; color:var(--slate-muted); font-weight:normal;">(未簽名送出前將跳提醒確認)</span></label>
+              <div class="sig-header-left">
+                <label class="form-label" style="margin-bottom:0;">病患 / 家屬簽名</label>
+                <label class="checkbox-unable-container" id="lblUnableSign" title="勾選代表病患因意識改變、劇痛等故無法親簽">
+                  <input type="checkbox" id="chkPatientUnableToSign" />
+                  <span class="chk-label-text">因故無法簽名</span>
+                </label>
+              </div>
               <button type="button" class="btn-clear-sig" id="btnDeletePatientSig">
                 <i class="fas fa-trash-alt"></i> 清除簽名
               </button>
@@ -720,7 +732,55 @@ function getOrCreateSpreadsheet(sheetName) {
     </div>
   </div>
 
+  <!-- Modal 7: 相機掃描救護單號條碼 (Barcode Scanner Modal) -->
+  <div class="modal-overlay" id="barcodeScannerModal">
+    <div class="modal-content" style="max-width: 460px; padding: 0; overflow: hidden; border-radius: 20px; background: #0B132B;">
+      <div class="modal-header" style="padding: 16px 20px; background: #0F172A; color: #FFFFFF; border-bottom: 1px solid rgba(255,255,255,0.1); margin: 0;">
+        <h3 class="modal-title" style="color: #FFFFFF; font-size: 17px; display: flex; align-items: center; gap: 8px;">
+          <i class="fas fa-camera" style="color: #2DD4BF;"></i> 掃描救護紀錄表條碼
+        </h3>
+        <button type="button" class="btn-close-modal" id="btnCloseBarcodeModal" style="color: #94A3B8; font-size: 26px; line-height: 1;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 18px 20px; background: #0B132B; color: #FFFFFF; text-align: center;">
+        <!-- Scanner Viewport Container -->
+        <div class="scanner-viewport-wrapper">
+          <div id="barcodeScannerView"></div>
+          <div class="scanner-laser-anim">
+            <span class="scanner-corner tl"></span>
+            <span class="scanner-corner tr"></span>
+            <span class="scanner-corner bl"></span>
+            <span class="scanner-corner br"></span>
+          </div>
+        </div>
+
+        <div style="margin-top: 14px; font-size: 13px; color: #94A3B8; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          <i class="fas fa-barcode" style="color: #2DD4BF;"></i>
+          <span>請將紙本救護紀錄表單號條碼置於框中</span>
+        </div>
+
+        <!-- Camera Controls -->
+        <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap;">
+          <button type="button" id="btnToggleTorch" class="btn-inline" style="background: rgba(255,255,255,0.12); color: #FFFFFF; border: 1px solid rgba(255,255,255,0.2); font-size: 13px; padding: 0 14px; height: 38px; border-radius: 8px; display: none;">
+            <i class="fas fa-bolt"></i> <span id="torchBtnText">開啟手電筒</span>
+          </button>
+          <label class="btn-inline" style="background: rgba(45, 212, 191, 0.18); color: #2DD4BF; border: 1px solid rgba(45, 212, 191, 0.4); font-size: 13px; padding: 0 14px; height: 38px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; margin: 0;">
+            <i class="fas fa-image"></i> 相簿選圖辨識
+            <input type="file" id="barcodeFileInput" accept="image/*" style="display: none;" />
+          </label>
+        </div>
+
+        <div id="scannerStatusMsg" style="margin-top: 12px; min-height: 22px; font-size: 13px; color: #F59E0B; font-weight: 500;"></div>
+      </div>
+      <div class="modal-footer" style="padding: 12px 20px; background: #0F172A; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: flex-end;">
+        <button type="button" class="btn-secondary-large" id="btnCancelScan" style="background: rgba(255,255,255,0.1); color: #E2E8F0; border-color: rgba(255,255,255,0.2); padding: 8px 22px; font-size: 14px;">
+          關閉
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- JavaScript App Modules -->
+  <script src="html5-qrcode.min.js"></script>
   <script src="signature-pad.js"></script>
   <script src="google-sync.js"></script>
   <script src="pdf-generator.js"></script>

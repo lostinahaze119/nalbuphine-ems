@@ -124,7 +124,7 @@ class NalbuphinePdfGenerator {
           <div style="width: 45%;">
             <strong>病患簽名：</strong>
             <div style="margin-top: 4px; border-bottom: 1px solid #000; min-height: 45px; height: 45px; display: flex; align-items: center; justify-content: center;">
-              ${formData.patientSignature ? `<img src="${formData.patientSignature}" style="max-height: 40px; max-width: 100%; object-fit: contain;" />` : '<span style="color:#888; font-size:9pt;">(未簽名)</span>'}
+              ${formData.patientSignature ? `<img src="${formData.patientSignature}" style="max-height: 40px; max-width: 100%; object-fit: contain;" />` : (formData.patientUnableToSign ? '<span style="color:#000; font-size:10.5pt; font-weight:bold; letter-spacing:1px;">【因故無法簽名】</span>' : '<span style="color:#888; font-size:9pt;">(未簽名)</span>')}
             </div>
           </div>
           <div style="width: 45%;">
