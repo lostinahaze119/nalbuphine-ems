@@ -45,7 +45,7 @@ class TouchSignaturePad {
 
   resize() {
     const wasEmpty = this.isEmpty();
-    const tempImage = wasEmpty ? null : this.toDataURL();
+    const tempImage = wasEmpty ? null : this.canvas.toDataURL('image/png');
     const { width, height } = this.getCanvasDisplaySize();
     const dpr = window.devicePixelRatio || 1;
 
@@ -174,7 +174,21 @@ class TouchSignaturePad {
   }
 
   toDataURL(type = 'image/png') {
-    return this.canvas.toDataURL(type);
+    const maxDim = 640;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    if (w <= maxDim && h <= maxDim) {
+      return this.canvas.toDataURL(type);
+    }
+    const scale = Math.min(maxDim / w, maxDim / h);
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = Math.max(1, Math.round(w * scale));
+    exportCanvas.height = Math.max(1, Math.round(h * scale));
+    const exportCtx = exportCanvas.getContext('2d');
+    exportCtx.fillStyle = '#FFFFFF';
+    exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+    exportCtx.drawImage(this.canvas, 0, 0, exportCanvas.width, exportCanvas.height);
+    return exportCanvas.toDataURL(type);
   }
 
   fromDataURL(dataUrl) {

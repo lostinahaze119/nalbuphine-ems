@@ -179,6 +179,8 @@ class GoogleSyncManager {
     const response = await fetch(this.gasUrl, {
       method: 'POST',
       mode: 'cors',
+      redirect: 'follow',
+      cache: 'no-store',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
         action: 'createSignRequest',
@@ -193,7 +195,7 @@ class GoogleSyncManager {
       throw new Error('離線中');
     }
     const url = `${this.gasUrl}?action=getSignStatus&signId=${encodeURIComponent(signId)}&token=${encodeURIComponent(token)}&_t=${Date.now()}`;
-    const response = await fetch(url, { method: 'GET', mode: 'cors' });
+    const response = await fetch(url, { method: 'GET', mode: 'cors', redirect: 'follow', cache: 'no-store' });
     return await response.json();
   }
 
@@ -201,18 +203,53 @@ class GoogleSyncManager {
     if (!this.gasUrl || !navigator.onLine) {
       throw new Error('目前處於離線狀態，無法送出遠端簽核');
     }
-    const response = await fetch(this.gasUrl, {
-      method: 'POST',
-      mode: 'cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'submitSupervisorSign',
-        signId,
-        token,
-        supervisorSignature
-      })
+    const bodyStr = JSON.stringify({
+      action: 'submitSupervisorSign',
+      signId,
+      token,
+      supervisorSignature
     });
-    return await response.json();
+
+    try {
+      const response = await fetch(this.gasUrl, {
+        method: 'POST',
+        mode: 'cors',
+        redirect: 'follow',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: bodyStr
+      });
+      return await response.json();
+    } catch (corsErr) {
+      // iOS Safari / LINE 內建瀏覽器在 GAS 302 轉址時可能回傳 Load failed，先查狀態確認或改用 no-cors 送出後輪詢確認
+      try {
+        const preCheck = await this.getRemoteSignStatus(signId, token);
+        if (preCheck && preCheck.result === 'success' && preCheck.status === 'signed') {
+          return { result: 'success', status: 'signed', supervisorSignedAt: preCheck.supervisorSignedAt };
+        }
+      } catch (e) {}
+
+      await fetch(this.gasUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        redirect: 'follow',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: bodyStr
+      });
+
+      for (let i = 0; i < 4; i++) {
+        await new Promise(r => setTimeout(r, 1200));
+        try {
+          const check = await this.getRemoteSignStatus(signId, token);
+          if (check && check.result === 'success' && check.status === 'signed') {
+            return { result: 'success', status: 'signed', supervisorSignedAt: check.supervisorSignedAt };
+          }
+        } catch (e) {}
+      }
+
+      throw corsErr;
+    }
   }
 
   updateLocalRecordStatus(id, status, errorMsg = '', driveUrl = '') {
