@@ -1077,7 +1077,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!box) return;
     box.classList.add('has-signature');
     const badgeHtml = lockBadgeText
-      ? `<span class="re-sign-badge" style="background:#065F46;"><i class="fas fa-lock"></i> ${lockBadgeText}</span>`
+      ? `<span class="re-sign-badge" style="background:#065F46; color:#FFFFFF;"><i class="fas fa-lock"></i> ${lockBadgeText}</span>`
       : `<span class="re-sign-badge"><i class="fas fa-edit"></i> 點擊重簽</span>`;
     box.innerHTML = `
       ${badgeHtml}
@@ -2625,18 +2625,39 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
       }
 
-      // 格式化民國日期顯示
-      let minguoDateDisplay = res.date || '';
-      if (res.date && res.date.includes('-')) {
-        const p = res.date.split('-');
-        minguoDateDisplay = `民國 ${parseInt(p[0], 10) - 1911} 年 ${p[1]} 月 ${p[2]} 日`;
+      // 格式化民國日期與時間顯示（相容 Google Sheets ISO 日期格式）
+      let minguoDateDisplay = '';
+      if (res.date) {
+        if (typeof res.date === 'string' && res.date.includes('T') && res.date.includes('Z')) {
+          const d = new Date(res.date);
+          if (!isNaN(d.getTime())) {
+            minguoDateDisplay = `民國 ${d.getFullYear() - 1911} 年 ${String(d.getMonth() + 1).padStart(2, '0')} 月 ${String(d.getDate()).padStart(2, '0')} 日`;
+          }
+        } else if (String(res.date).includes('-')) {
+          const p = String(res.date).split('-');
+          minguoDateDisplay = `民國 ${parseInt(p[0], 10) - 1911} 年 ${p[1]} 月 ${p[2]} 日`;
+        } else {
+          minguoDateDisplay = String(res.date);
+        }
+      }
+
+      let timeDisplay = '';
+      if (res.time) {
+        if (typeof res.time === 'string' && res.time.includes('T') && res.time.includes('Z')) {
+          const t = new Date(res.time);
+          if (!isNaN(t.getTime())) {
+            timeDisplay = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+          }
+        } else {
+          timeDisplay = String(res.time);
+        }
       }
 
       if (summaryEl) {
         summaryEl.innerHTML = `
           <div><strong>出勤單位：</strong>${res.unit || '光明91'}</div>
           <div><strong>救護紀錄表單號：</strong>${res.formNo || ''}</div>
-          <div><strong>給藥日期時間：</strong>${minguoDateDisplay} ${res.time || ''}</div>
+          <div><strong>給藥日期時間：</strong>${minguoDateDisplay} ${timeDisplay}</div>
           <div><strong>給藥途徑與實打劑量：</strong>${res.route || ''} ${res.dosage || ''} mg</div>
           <div class="remote-waste-highlight">
             <i class="fas fa-biohazard"></i> 案件內容銷毀確認：應銷毀剩餘劑量 ${res.wasteDosage || 0} mg
