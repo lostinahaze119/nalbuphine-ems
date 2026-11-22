@@ -245,24 +245,33 @@
           <span class="section-status-badge valid" id="statusBadgeSec5"><i class="fas fa-check-circle"></i> 完成</span>
         </h2>
 
-        <div class="vas-container" id="vasPreContainer">
-          <div class="vas-header">
-            <span class="form-label" style="font-size:15px;">給藥前 VAS 疼痛分數：</span>
-            <div class="vas-score-display">8 分</div>
-          </div>
-          <div class="vas-buttons"></div>
+        <div class="vas-unconscious-row">
+          <label class="checkbox-unable-container" id="lblVasUnconscious" title="勾選代表患者意識不清，無法評估疼痛指數">
+            <input type="checkbox" id="chkVasUnconscious" />
+            <span class="chk-label-text">患者意識不清無法評估</span>
+          </label>
         </div>
 
-        <div class="vas-container" id="vasPostContainer">
-          <div class="vas-header">
-            <span class="form-label" style="font-size:15px;">給藥後半小時 VAS 疼痛分數：</span>
-            <div class="vas-score-display">3 分</div>
+        <div id="vasEvalContent">
+          <div class="vas-container" id="vasPreContainer">
+            <div class="vas-header">
+              <span class="form-label" style="font-size:15px;">給藥前 VAS 疼痛分數：</span>
+              <div class="vas-score-display">8 分</div>
+            </div>
+            <div class="vas-buttons"></div>
           </div>
-          <div class="vas-buttons"></div>
-        </div>
 
-        <div style="text-align:center;">
-          <span class="vas-delta-badge" id="vasDeltaBadge"></span>
+          <div class="vas-container" id="vasPostContainer">
+            <div class="vas-header">
+              <span class="form-label" style="font-size:15px;">給藥後半小時 VAS 疼痛分數：</span>
+              <div class="vas-score-display">3 分</div>
+            </div>
+            <div class="vas-buttons"></div>
+          </div>
+
+          <div style="text-align:center;">
+            <span class="vas-delta-badge" id="vasDeltaBadge"></span>
+          </div>
         </div>
       </section>
 

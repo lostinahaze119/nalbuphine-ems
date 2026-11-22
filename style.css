@@ -1235,3 +1235,25 @@ canvas.signature-canvas {
   box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25);
 }
 
+/* VAS 患者意識不清無法評估 */
+.vas-unconscious-row {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+}
+
+#vasEvalContent {
+  transition: var(--transition-fast);
+}
+
+#vasEvalContent.vas-disabled {
+  filter: grayscale(100%);
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
+}
+
+#vasEvalContent.vas-disabled .vas-btn {
+  cursor: not-allowed;
+}
+

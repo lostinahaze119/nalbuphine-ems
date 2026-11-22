@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     repeatDoseRemark: '',
     vasPre: 8,
     vasPost: 3,
+    vasUnconscious: false,
     sideEffects: ['無任何副作用'],
     sideEffectOther: '',
     satisfaction: '非常滿意 (5 分)',
@@ -59,6 +60,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnNewCase = document.getElementById('btnNewCase');
   const chkPatientUnableToSign = document.getElementById('chkPatientUnableToSign');
   const lblUnableSign = document.getElementById('lblUnableSign');
+  const chkVasUnconscious = document.getElementById('chkVasUnconscious');
+  const lblVasUnconscious = document.getElementById('lblVasUnconscious');
+  const vasEvalContent = document.getElementById('vasEvalContent');
   
   // Modals
   const signatureModal = document.getElementById('signatureModal');
@@ -541,9 +545,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     formData.vasPre = 8;
     formData.vasPost = 3;
+    formData.vasUnconscious = false;
+    if (chkVasUnconscious) chkVasUnconscious.checked = false;
     setupVasScale('vasPreContainer', formData.vasPre, (score) => { formData.vasPre = score; });
     setupVasScale('vasPostContainer', formData.vasPost, (score) => { formData.vasPost = score; });
-    calculateVasDelta();
+    updateVasUnconsciousUI();
 
     formData.sideEffects = ['無任何副作用'];
     document.querySelectorAll('.side-effect-card').forEach(card => {
@@ -696,6 +702,14 @@ document.addEventListener('DOMContentLoaded', () => {
   function calculateVasDelta() {
     const deltaBadge = document.getElementById('vasDeltaBadge');
     if (!deltaBadge) return;
+
+    if (formData.vasUnconscious) {
+      deltaBadge.style.backgroundColor = '#F1F5F9';
+      deltaBadge.style.color = '#475569';
+      deltaBadge.style.borderColor = '#CBD5E1';
+      deltaBadge.innerHTML = `<i class="fas fa-ban"></i> 患者意識不清無法評估`;
+      return;
+    }
     
     const pre = formData.vasPre;
     const post = formData.vasPost;
@@ -719,9 +733,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function updateVasUnconsciousUI() {
+    const disabled = !!formData.vasUnconscious;
+    if (lblVasUnconscious) lblVasUnconscious.classList.toggle('checked', disabled);
+    if (vasEvalContent) vasEvalContent.classList.toggle('vas-disabled', disabled);
+
+    document.querySelectorAll('#vasPreContainer .vas-btn, #vasPostContainer .vas-btn').forEach(btn => {
+      btn.disabled = disabled;
+    });
+    calculateVasDelta();
+  }
+
+  if (chkVasUnconscious) {
+    chkVasUnconscious.addEventListener('change', () => {
+      formData.vasUnconscious = chkVasUnconscious.checked;
+      updateVasUnconsciousUI();
+      validateFormStatus();
+      showToast(formData.vasUnconscious ? '已勾選：患者意識不清無法評估 VAS' : '已恢復 VAS 疼痛指數評估');
+    });
+  }
+
   setupVasScale('vasPreContainer', formData.vasPre, (score) => { formData.vasPre = score; });
   setupVasScale('vasPostContainer', formData.vasPost, (score) => { formData.vasPost = score; });
-  calculateVasDelta();
+  updateVasUnconsciousUI();
 
   // 副作用 Cards
   const sideEffectCards = document.querySelectorAll('.side-effect-card');
@@ -951,7 +985,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sec2Valid = !!(formData.gender && formData.age);
     const sec3Valid = formData.conditions && formData.conditions.length > 0;
     const sec4Valid = !!(formData.dosage && formData.route);
-    const sec5Valid = formData.vasPre !== undefined && formData.vasPost !== undefined;
+    const sec5Valid = formData.vasUnconscious || (formData.vasPre !== undefined && formData.vasPost !== undefined);
     const sec6Valid = formData.sideEffects && formData.sideEffects.length > 0;
     const sec7Valid = !!formData.satisfaction;
     const sec8Valid = !!formData.emtSignature; // 救護員必簽，病患未簽在送出前跳提醒但允許送出
@@ -960,7 +994,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setSectionBadge('cardSec2', 'statusBadgeSec2', sec2Valid, sec2Valid ? '完成' : '必填');
     setSectionBadge('cardSec3', 'statusBadgeSec3', sec3Valid, sec3Valid ? '完成' : '必填');
     setSectionBadge('cardSec4', 'statusBadgeSec4', sec4Valid, sec4Valid ? '完成' : '必填');
-    setSectionBadge('cardSec5', 'statusBadgeSec5', sec5Valid, sec5Valid ? '完成' : '完成');
+    setSectionBadge('cardSec5', 'statusBadgeSec5', sec5Valid, formData.vasUnconscious ? '完成 (無法評估)' : '完成');
     setSectionBadge('cardSec6', 'statusBadgeSec6', sec6Valid, sec6Valid ? '完成' : '必填');
     setSectionBadge('cardSec7', 'statusBadgeSec7', sec7Valid, sec7Valid ? '完成' : '完成');
 
@@ -1072,7 +1106,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
           </div>
           <div style="font-size:13px; color:#64748B; margin-top:8px; line-height:1.6;">
-            時間：${r.timestamp} ｜ 性別：${r.data.gender} ｜ 年齡：${r.data.age || '未填'}歲 ｜ 給藥前/後 VAS：${r.data.vasPre} ➔ ${r.data.vasPost}
+            時間：${r.timestamp} ｜ 性別：${r.data.gender} ｜ 年齡：${r.data.age || '未填'}歲 ｜ 給藥前/後 VAS：${r.data.vasUnconscious ? '意識不清無法評估' : `${r.data.vasPre} ➔ ${r.data.vasPost}`}
           </div>
           ${r.driveUrl ? `<a href="${r.driveUrl}" target="_blank" style="font-size:13px; color:#0284C7; margin-top:8px; display:inline-block; font-weight:600;"><i class="fas fa-external-link-alt"></i> 開啟 Google Drive PDF</a>` : ''}
         </div>
@@ -1175,9 +1209,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     formData.vasPre = data.vasPre !== undefined ? data.vasPre : 8;
     formData.vasPost = data.vasPost !== undefined ? data.vasPost : 3;
+    formData.vasUnconscious = !!data.vasUnconscious;
+    if (chkVasUnconscious) chkVasUnconscious.checked = formData.vasUnconscious;
     setupVasScale('vasPreContainer', formData.vasPre, (score) => { formData.vasPre = score; });
     setupVasScale('vasPostContainer', formData.vasPost, (score) => { formData.vasPost = score; });
-    calculateVasDelta();
+    updateVasUnconsciousUI();
 
     formData.sideEffects = data.sideEffects || [];
     document.querySelectorAll('.side-effect-card').forEach(card => {

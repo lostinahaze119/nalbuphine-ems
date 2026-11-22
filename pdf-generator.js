@@ -92,8 +92,11 @@ class NalbuphinePdfGenerator {
         <div style="margin-bottom: 8px;">
           <strong>疼痛指數變化（VAS 0 － 10 分）</strong>
           <div style="margin-left: 18px; margin-top: 2px; line-height: 1.4;">
-            給藥前 VAS： <u>&nbsp; ${formData.vasPre !== undefined ? formData.vasPre : '____'} &nbsp;</u> 分<br/>
-            給藥後半小時 VAS： <u>&nbsp; ${formData.vasPost !== undefined ? formData.vasPost : '____'} &nbsp;</u> 分
+            <div>${formData.vasUnconscious ? '■' : '□'} 患者意識不清無法評估</div>
+            ${formData.vasUnconscious
+              ? `<div style="color:#666;">給藥前 VAS：<u>&nbsp; 無法評估 &nbsp;</u><br/>給藥後半小時 VAS：<u>&nbsp; 無法評估 &nbsp;</u></div>`
+              : `給藥前 VAS： <u>&nbsp; ${formData.vasPre !== undefined ? formData.vasPre : '____'} &nbsp;</u> 分<br/>給藥後半小時 VAS： <u>&nbsp; ${formData.vasPost !== undefined ? formData.vasPost : '____'} &nbsp;</u> 分`
+            }
           </div>
         </div>
 
