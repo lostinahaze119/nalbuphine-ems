@@ -178,14 +178,12 @@ class TouchSignaturePad {
     return !pixelBuffer.some(color => color !== 0xffffffff);
   }
 
-  toDataURL(type = 'image/png') {
+  toDataURL(type = 'image/png', watermarkText = '') {
     const maxDim = 640;
     const w = this.canvas.width;
     const h = this.canvas.height;
-    if (w <= maxDim && h <= maxDim) {
-      return this.canvas.toDataURL(type);
-    }
-    const scale = Math.min(maxDim / w, maxDim / h);
+    const scale = (w <= maxDim && h <= maxDim) ? 1 : Math.min(maxDim / w, maxDim / h);
+
     const exportCanvas = document.createElement('canvas');
     exportCanvas.width = Math.max(1, Math.round(w * scale));
     exportCanvas.height = Math.max(1, Math.round(h * scale));
@@ -193,7 +191,29 @@ class TouchSignaturePad {
     exportCtx.fillStyle = '#FFFFFF';
     exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
     exportCtx.drawImage(this.canvas, 0, 0, exportCanvas.width, exportCanvas.height);
+
+    if (watermarkText) {
+      this.applyWatermark(exportCtx, exportCanvas.width, exportCanvas.height, watermarkText);
+    }
     return exportCanvas.toDataURL(type);
+  }
+
+  applyWatermark(ctx, width, height, text) {
+    ctx.save();
+    const fontSize = Math.max(11, Math.min(16, Math.round(width / 34)));
+    ctx.font = `bold ${fontSize}px "Noto Sans TC", "Microsoft JhengHei", sans-serif`;
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.22)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.translate(width / 2, height / 2);
+    ctx.rotate(-16 * Math.PI / 180);
+
+    const stepY = Math.max(46, Math.round(height / 3));
+    for (let y = -height; y <= height; y += stepY) {
+      ctx.fillText(text, 0, y);
+    }
+    ctx.restore();
   }
 
   fromDataURL(dataUrl) {

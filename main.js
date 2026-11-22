@@ -1071,7 +1071,18 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       showToast('已確認並恢復為空白簽名狀態');
     } else {
-      const sigDataUrl = activeSignaturePad.toDataURL();
+      const nowStamp = formatTaiwanTimestamp();
+      let watermarkText = '';
+      if (currentSigningType === 'supervisor') {
+        watermarkText = `僅供銷毀${formData.wasteDosage || 0}mg簽核｜${formData.unit || '光明91'}｜單號:${formData.formNo || '未填'}｜${nowStamp}`;
+      } else if (currentSigningType === 'remoteSupervisor') {
+        const ctx = remoteSignContext || {};
+        watermarkText = `僅供銷毀${ctx.wasteDosage || 0}mg簽核｜${ctx.unit || '光明91'}｜單號:${ctx.formNo || ''}｜${nowStamp}`;
+      } else {
+        watermarkText = `僅供Nalbuphine止痛評估｜${formData.unit || '光明91'}｜單號:${formData.formNo || '未填'}｜${nowStamp}`;
+      }
+
+      const sigDataUrl = activeSignaturePad.toDataURL('image/png', watermarkText);
       if (currentSigningType === 'patient') {
         formData.patientSignature = sigDataUrl;
         updateSignatureBoxUI('patientSigBox', sigDataUrl);
@@ -2606,6 +2617,8 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {}
   }
 
+  let remoteSignContext = { unit: '', formNo: '', wasteDosage: '' };
+
   // 遠端主管簽核專屬視圖 (當網址帶有 ?signId=...&token=... 時啟用)
   async function initSupervisorRemoteMode() {
     const params = new URLSearchParams(window.location.search);
@@ -2682,6 +2695,12 @@ document.addEventListener('DOMContentLoaded', () => {
           timeDisplay = String(res.time);
         }
       }
+
+      remoteSignContext = {
+        unit: res.unit || '光明91',
+        formNo: res.formNo || '',
+        wasteDosage: res.wasteDosage !== undefined ? res.wasteDosage : '0'
+      };
 
       if (summaryEl) {
         summaryEl.innerHTML = `

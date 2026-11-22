@@ -157,6 +157,8 @@ class GoogleSyncManager {
       supervisorSignature: record.data.supervisorSignature || '',
       supervisorSignedAt: record.data.supervisorSignedAt || '',
       supervisorSignMode: record.data.supervisorSignMode || '',
+      remoteSignId: record.data.remoteSignId || '',
+      remoteSignToken: record.data.remoteSignToken || '',
       pdfBase64: record.pdfBase64
     };
 

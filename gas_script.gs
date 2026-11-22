@@ -253,11 +253,28 @@ function handleSubmitRecord(ss, postData) {
   sheet.appendRow(rowData);
   const lastRow = sheet.getLastRow();
 
+  // PDF 歸檔後，自動清除 SupervisorSignRequests 中的暫存簽名圖檔，避免原圖長期留存
+  if (postData.remoteSignId && postData.remoteSignToken) {
+    purgeRemoteSignImage(ss, postData.remoteSignId, postData.remoteSignToken);
+  }
+
   return jsonResponse({
     result: "success",
     sheetRow: lastRow,
     driveUrl: driveFileUrl
   });
+}
+
+function purgeRemoteSignImage(ss, signId, token) {
+  const signSheet = ss.getSheetByName(SIGN_SHEET_NAME);
+  if (!signSheet) return;
+  const values = signSheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === String(signId) && String(values[i][1]) === String(token)) {
+      signSheet.getRange(i + 1, 13).setValue("[已歸檔PDF，原圖已清除]");
+      break;
+    }
+  }
 }
 
 function getOrCreateSignSheet(ss) {
