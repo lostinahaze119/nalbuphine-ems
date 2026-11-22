@@ -235,6 +235,33 @@
           <label class="form-label">重複給藥說明 / 備註 <span style="font-size:12px; color:var(--slate-muted); font-weight:normal;">(請說明重複給藥原因、追加時間或劑量)</span></label>
           <input type="text" id="inputRepeatDoseRemark" class="form-control" placeholder="例：首次劑量 5mg 疼痛未緩解，經評估後再次追加 5mg" />
         </div>
+
+        <!-- 剩餘劑量銷毀 (自動依 10mg/支推算，小於 10mg) -->
+        <div class="waste-dosage-card">
+          <div class="waste-dosage-left">
+            <label class="form-label" style="margin-bottom:4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <span><i class="fas fa-biohazard" style="color:#D97706;"></i> 剩餘劑量銷毀 (mg)</span>
+              <span class="waste-rule-badge">依 10mg/支 自動推算 (&lt;10mg)</span>
+            </label>
+            <div style="font-size:12px; color:var(--slate-muted);">
+              系統依實打劑量自動換算單支剩餘應銷毀量（若為 0 mg 則免主管銷毀簽核；大於 10 mg 屬損毀另案處理）。
+            </div>
+          </div>
+          <div class="waste-dosage-input-wrap">
+            <input type="number" id="inputWasteDosage" class="form-control" value="5" min="0" max="9.9" step="0.5" inputmode="decimal" style="width:100px; text-align:center; font-weight:800; font-size:18px;" />
+            <span style="font-weight:700; color:var(--slate-dark);">mg</span>
+          </div>
+        </div>
+
+        <div id="doseLockBanner" class="dose-lock-banner" style="display:none;">
+          <div style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; color:#92400E;">
+            <i class="fas fa-lock"></i>
+            <span id="doseLockText">已發起遠端簽核或主管已完成簽核，單號、時間與劑量欄位已鎖定防竄改</span>
+          </div>
+          <button type="button" id="btnUnlockSupervisorSign" class="btn-inline" style="height:32px; padding:0 12px; font-size:12px; background:#DC2626;">
+            <i class="fas fa-unlock"></i> 解除鎖定並作廢簽名
+          </button>
+        </div>
       </section>
 
       <!-- Section 5: 疼痛指數變化 (VAS 0 - 10 分) -->
@@ -399,7 +426,60 @@
           </div>
         </div>
 
-        <div class="notice-box">
+        <!-- 主管剩餘劑量銷毀簽核區 (現場簽核 / 遠端連結簽核) -->
+        <div class="supervisor-sign-panel" id="supervisorSigContainer">
+          <div class="signature-box-header" style="margin-bottom:8px;">
+            <div class="sig-header-left">
+              <label class="form-label" style="margin-bottom:0;">
+                <i class="fas fa-user-shield" style="color:#D97706;"></i> 主管剩餘劑量銷毀簽核
+                <span class="sup-waste-pill" id="supWastePill">銷毀 5 mg</span>
+              </label>
+              <span class="sup-status-tag" id="supStatusTag">待簽核</span>
+            </div>
+            <button type="button" class="btn-clear-sig" id="btnDeleteSupervisorSig">
+              <i class="fas fa-trash-alt"></i> 清除/作廢
+            </button>
+          </div>
+
+          <div class="signature-box" id="supervisorSigBox">
+            <div class="signature-prompt">
+              <i class="fas fa-user-check" style="color:#D97706;"></i>
+              <span>主管在現場：點擊此處直接用手指簽名</span>
+            </div>
+          </div>
+
+          <div class="sup-timestamp-row" id="supervisorSignedAtDisplay" style="display:none;">
+            <i class="fas fa-clock"></i> 簽核時間：<span id="supervisorSignedAtText"></span>
+          </div>
+
+          <div class="remote-sign-bar" id="remoteSignBar">
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+              <button type="button" id="btnGenRemoteSign" class="btn-inline" style="background:linear-gradient(135deg, #0284C7, #0D9488); height:38px; padding:0 14px; font-size:13px;">
+                <i class="fas fa-link"></i> 主管未隨行：產生遠端簽核連結
+              </button>
+              <button type="button" id="btnCheckRemoteSignNow" class="btn-inline" style="display:none; background:#475569; height:38px; padding:0 12px; font-size:13px;">
+                <i class="fas fa-sync-alt"></i> 立即檢查狀態
+              </button>
+            </div>
+
+            <div id="remoteSignLinkBox" class="remote-sign-link-box" style="display:none;">
+              <div class="remote-polling-status" id="remotePollingStatus">
+                <i class="fas fa-spinner fa-spin"></i> 等待主管遠端簽核中（系統每 4 秒自動檢查）...
+              </div>
+              <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                <input type="text" id="remoteSignUrlInput" class="form-control" readonly style="flex:1; min-width:180px; font-size:12px; height:36px; background:#F8FAFC;" />
+                <button type="button" id="btnCopyRemoteSignUrl" class="btn-inline" style="height:36px; padding:0 12px; font-size:13px; background:#0F172A;">
+                  <i class="fas fa-copy"></i> 複製網址
+                </button>
+                <button type="button" id="btnShareLineRemoteSign" class="btn-inline" style="height:36px; padding:0 12px; font-size:13px; background:#06C755;">
+                  <i class="fab fa-line"></i> LINE 傳給主管
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="notice-box" style="margin-top:14px;">
           <i class="fas fa-leaf"></i>
           <span>此表單將於送出後自動生成 PDF 歸檔並同步至指定 Google 雲端資料夾</span>
         </div>
@@ -407,6 +487,51 @@
 
     </form>
   </main>
+
+  <!-- Remote Supervisor Sign-Off Dedicated View (開啟遠端簽核網址時顯示) -->
+  <section id="supervisorRemoteView" class="supervisor-remote-view" style="display:none;">
+    <div class="form-card" style="max-width:600px; margin:20px auto;">
+      <h2 class="card-title" style="border-bottom:2px solid #E2E8F0; padding-bottom:12px;">
+        <span class="icon-box" style="background:linear-gradient(135deg,#D97706,#B45309);"><i class="fas fa-user-shield"></i></span>
+        Nalbuphine 剩餘劑量銷毀確認簽核
+      </h2>
+
+      <div id="remoteViewLoading" style="text-align:center; padding:30px 10px; color:var(--slate-muted);">
+        <i class="fas fa-spinner fa-spin fa-2x" style="color:var(--teal-main);"></i>
+        <p style="margin-top:12px; font-weight:600;">正在從雲端載入案件銷毀資訊...</p>
+      </div>
+
+      <div id="remoteViewError" style="display:none; text-align:center; padding:24px 12px;">
+        <i class="fas fa-exclamation-triangle fa-2x" style="color:#EF4444;"></i>
+        <p id="remoteViewErrorMsg" style="margin-top:10px; font-weight:700; color:#991B1B;"></p>
+      </div>
+
+      <div id="remoteViewContent" style="display:none;">
+        <div class="remote-case-summary" id="remoteCaseSummary"></div>
+
+        <div style="margin-top:16px;">
+          <label class="form-label">主管確認銷毀手寫簽名 <span style="color:#EF4444;">*</span></label>
+          <div class="signature-box" id="remoteSupervisorSigBox" style="min-height:150px;">
+            <div class="signature-prompt">
+              <i class="fas fa-pen-fancy" style="color:#D97706;"></i>
+              <span>點擊此處開啟滿版手寫簽名</span>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" id="btnSubmitRemoteSupervisorSign" class="btn-primary-large" style="width:100%; margin-top:16px; background:linear-gradient(135deg,#0D9488,#0284C7);">
+          <i class="fas fa-check-circle"></i> 確認銷毀並送出簽核
+        </button>
+      </div>
+
+      <div id="remoteViewSuccess" style="display:none; text-align:center; padding:24px 12px;">
+        <i class="fas fa-check-circle fa-3x" style="color:#10B981;"></i>
+        <h3 style="margin-top:12px; color:#065F46;">已完成銷毀確認簽核！</h3>
+        <p id="remoteViewSuccessTime" style="color:var(--slate-muted); font-size:14px; margin-top:6px;"></p>
+        <p style="color:#0D9488; font-size:13px; font-weight:600; margin-top:8px;">簽核結果已自動回傳至 EMT 平板並鎖定，您可以關閉此視窗。</p>
+      </div>
+    </div>
+  </section>
 
   <!-- Sticky Bottom Action Bar -->
   <footer class="sticky-footer-bar">

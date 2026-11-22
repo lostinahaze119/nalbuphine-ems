@@ -30,8 +30,8 @@ class NalbuphinePdfGenerator {
         background: #ffffff;
         color: #000000;
         font-family: 'DFKai-SB', 'PMingLiU', 'Noto Sans TC', 'Noto Serif TC', 'Microsoft JhengHei', sans-serif, serif;
-        font-size: 11pt;
-        line-height: 1.4;
+        font-size: 10.5pt;
+        line-height: 1.32;
         box-sizing: border-box;
         overflow: hidden;
         margin: 0 auto;
@@ -75,18 +75,22 @@ class NalbuphinePdfGenerator {
           </div>
         </div>
 
-        <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: baseline;">
+        <div style="margin-bottom: 6px; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap;">
           <div>
             <strong>給藥劑量 / 途徑：</strong> 
             <u>&nbsp; ${formData.dosage || '5'} &nbsp;</u> mg 
             （ ${isRadio(formData.route, 'IV')} IV &nbsp;&nbsp; ${isRadio(formData.route, 'IM')} IM ）
           </div>
           <div>
-            <strong>重複給藥：</strong>
-            ${isRadio(formData.repeatDose, '是')} 是 &nbsp;&nbsp;
-            ${isRadio(formData.repeatDose, '否')} 否
-            ${formData.repeatDose === '是' && formData.repeatDoseRemark ? `<span style="font-size: 10pt;">（<u>&nbsp;${formData.repeatDoseRemark}&nbsp;</u>）</span>` : ''}
+            <strong>剩餘劑量銷毀：</strong>
+            <u>&nbsp; ${formData.wasteDosage !== undefined ? formData.wasteDosage : '0'} &nbsp;</u> mg
           </div>
+        </div>
+        <div style="margin-bottom: 8px;">
+          <strong>重複給藥：</strong>
+          ${isRadio(formData.repeatDose, '是')} 是 &nbsp;&nbsp;
+          ${isRadio(formData.repeatDose, '否')} 否
+          ${formData.repeatDose === '是' && formData.repeatDoseRemark ? `<span style="font-size: 9.5pt;">（<u>&nbsp;${formData.repeatDoseRemark}&nbsp;</u>）</span>` : ''}
         </div>
 
         <div style="margin-bottom: 8px;">
@@ -126,18 +130,31 @@ class NalbuphinePdfGenerator {
           </div>
         </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 8px; padding-top: 4px;">
-          <div style="width: 45%;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 6px; padding-top: 4px; gap: 10px;">
+          <div style="width: 31%;">
             <strong>病患簽名：</strong>
-            <div style="margin-top: 4px; border-bottom: 1px solid #000; min-height: 45px; height: 45px; display: flex; align-items: center; justify-content: center;">
-              ${formData.patientSignature ? `<img src="${formData.patientSignature}" style="max-height: 40px; max-width: 100%; object-fit: contain;" />` : (formData.patientUnableToSign ? '<span style="color:#000; font-size:10.5pt; font-weight:bold; letter-spacing:1px;">【因故無法簽名】</span>' : '<span style="color:#888; font-size:9pt;">(未簽名)</span>')}
+            <div style="margin-top: 4px; border-bottom: 1px solid #000; min-height: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+              ${formData.patientSignature ? `<img src="${formData.patientSignature}" style="max-height: 36px; max-width: 100%; object-fit: contain;" />` : (formData.patientUnableToSign ? '<span style="color:#000; font-size:9.5pt; font-weight:bold;">【因故無法簽名】</span>' : '<span style="color:#888; font-size:8.5pt;">(未簽名)</span>')}
             </div>
           </div>
-          <div style="width: 45%;">
+          <div style="width: 31%;">
             <strong>救護人員簽名：</strong>
-            <div style="margin-top: 4px; border-bottom: 1px solid #000; min-height: 45px; height: 45px; display: flex; align-items: center; justify-content: center;">
-              ${formData.emtSignature ? `<img src="${formData.emtSignature}" style="max-height: 40px; max-width: 100%; object-fit: contain;" />` : '<span style="color:#888; font-size:9pt;">(未簽名)</span>'}
+            <div style="margin-top: 4px; border-bottom: 1px solid #000; min-height: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+              ${formData.emtSignature ? `<img src="${formData.emtSignature}" style="max-height: 36px; max-width: 100%; object-fit: contain;" />` : '<span style="color:#888; font-size:8.5pt;">(未簽名)</span>'}
             </div>
+          </div>
+          <div style="width: 34%;">
+            <strong>主管銷毀簽核 (${formData.wasteDosage !== undefined ? formData.wasteDosage : '0'} mg)：</strong>
+            <div style="margin-top: 4px; border-bottom: 1px solid #000; min-height: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+              ${Number(formData.wasteDosage || 0) <= 0
+                ? '<span style="color:#555; font-size:8.5pt;">(無剩餘劑量免簽)</span>'
+                : (formData.supervisorSignature
+                    ? `<img src="${formData.supervisorSignature}" style="max-height: 36px; max-width: 100%; object-fit: contain;" />`
+                    : '<span style="color:#888; font-size:8.5pt;">(未簽核)</span>')}
+            </div>
+            ${Number(formData.wasteDosage || 0) > 0 && formData.supervisorSignedAt
+              ? `<div style="font-size: 7.5pt; color: #333; margin-top: 2px;">簽核時間：${formData.supervisorSignedAt}</div>`
+              : ''}
           </div>
         </div>
 

@@ -1260,3 +1260,163 @@ canvas.signature-canvas {
   cursor: not-allowed;
 }
 
+/* 剩餘劑量銷毀與防竄改鎖定 */
+.waste-dosage-card {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #FFFBEB;
+  border: 1.5px solid #FDE68A;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.waste-dosage-left {
+  flex: 1;
+  min-width: 220px;
+}
+
+.waste-rule-badge {
+  background: #FEF3C7;
+  color: #B45309;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #FCD34D;
+}
+
+.waste-dosage-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dose-lock-banner {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: #FEF3C7;
+  border: 1.5px solid #F59E0B;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.field-locked {
+  background-color: #F1F5F9 !important;
+  color: #475569 !important;
+  cursor: not-allowed !important;
+  opacity: 0.85;
+}
+
+/* 主管銷毀簽核區 */
+.supervisor-sign-panel {
+  margin-top: 16px;
+  padding: 14px;
+  background: #FFFDF7;
+  border: 1.5px solid #FCD34D;
+  border-radius: 14px;
+}
+
+.supervisor-sign-panel.exempt {
+  background: #F8FAFC;
+  border-color: #CBD5E1;
+  opacity: 0.75;
+}
+
+.sup-waste-pill {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #FEF3C7;
+  color: #B45309;
+  border: 1px solid #F59E0B;
+}
+
+.sup-status-tag {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 12px;
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+.sup-status-tag.signed {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.sup-status-tag.exempt {
+  background: #E2E8F0;
+  color: #475569;
+}
+
+.sup-timestamp-row {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #065F46;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.remote-sign-bar {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #E2E8F0;
+}
+
+.remote-sign-link-box {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #F0F9FF;
+  border: 1px solid #BAE6FD;
+  border-radius: 10px;
+}
+
+.remote-polling-status {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0369A1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.supervisor-remote-view {
+  padding: 16px 12px 40px;
+}
+
+.remote-case-summary {
+  background: #F8FAFC;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 14px;
+  line-height: 1.75;
+  font-size: 14.5px;
+  color: #0F172A;
+}
+
+.remote-waste-highlight {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #FEF3C7;
+  border: 1.5px solid #F59E0B;
+  border-radius: 10px;
+  color: #92400E;
+  font-weight: 800;
+  font-size: 16px;
+  text-align: center;
+}
+

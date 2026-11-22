@@ -140,6 +140,7 @@ class GoogleSyncManager {
       age: record.data.age,
       conditions: record.data.conditions ? record.data.conditions.join(', ') : '',
       dosage: record.data.dosage || '5',
+      wasteDosage: record.data.wasteDosage !== undefined ? record.data.wasteDosage : '0',
       route: record.data.route,
       repeatDose: record.data.repeatDose || '否',
       repeatDoseRemark: record.data.repeatDoseRemark || '',
@@ -151,7 +152,11 @@ class GoogleSyncManager {
       satisfactionUnconscious: !!record.data.satisfactionUnconscious,
       satisfaction: record.data.satisfactionUnconscious ? '患者意識不清無法評估' : record.data.satisfaction,
       patientSignature: record.data.patientSignature,
+      patientUnableToSign: !!record.data.patientUnableToSign,
       emtSignature: record.data.emtSignature,
+      supervisorSignature: record.data.supervisorSignature || '',
+      supervisorSignedAt: record.data.supervisorSignedAt || '',
+      supervisorSignMode: record.data.supervisorSignMode || '',
       pdfBase64: record.pdfBase64
     };
 
@@ -164,6 +169,49 @@ class GoogleSyncManager {
       body: JSON.stringify(payload)
     });
 
+    return await response.json();
+  }
+
+  async createRemoteSignRequest(signData) {
+    if (!this.gasUrl || !navigator.onLine) {
+      throw new Error('目前處於離線狀態或未綁定 Google 雲端網址');
+    }
+    const response = await fetch(this.gasUrl, {
+      method: 'POST',
+      mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'createSignRequest',
+        ...signData
+      })
+    });
+    return await response.json();
+  }
+
+  async getRemoteSignStatus(signId, token) {
+    if (!this.gasUrl || !navigator.onLine) {
+      throw new Error('離線中');
+    }
+    const url = `${this.gasUrl}?action=getSignStatus&signId=${encodeURIComponent(signId)}&token=${encodeURIComponent(token)}&_t=${Date.now()}`;
+    const response = await fetch(url, { method: 'GET', mode: 'cors' });
+    return await response.json();
+  }
+
+  async submitSupervisorSign(signId, token, supervisorSignature) {
+    if (!this.gasUrl || !navigator.onLine) {
+      throw new Error('目前處於離線狀態，無法送出遠端簽核');
+    }
+    const response = await fetch(this.gasUrl, {
+      method: 'POST',
+      mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'submitSupervisorSign',
+        signId,
+        token,
+        supervisorSignature
+      })
+    });
     return await response.json();
   }
 

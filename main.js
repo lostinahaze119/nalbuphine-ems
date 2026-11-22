@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     age: '',
     conditions: ['VAS 疼痛指數≧6 分'],
     dosage: '5',
+    wasteDosage: '5',
     route: 'IV',
     repeatDose: '否',
     repeatDoseRemark: '',
@@ -39,7 +40,13 @@ document.addEventListener('DOMContentLoaded', () => {
     satisfactionUnconscious: false,
     patientSignature: '',
     patientUnableToSign: false,
-    emtSignature: ''
+    emtSignature: '',
+    supervisorSignature: '',
+    supervisorSignedAt: '',
+    supervisorSignMode: '',
+    remoteSignId: '',
+    remoteSignToken: '',
+    isLockedForSign: false
   };
 
   let activeSignaturePad = null;
@@ -54,6 +61,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const formNoInput = document.getElementById('inputFormNo');
   const ageInput = document.getElementById('inputAge');
   const dosageInput = document.getElementById('inputDosage');
+  const wasteDosageInput = document.getElementById('inputWasteDosage');
+  const doseLockBanner = document.getElementById('doseLockBanner');
+  const btnUnlockSupervisorSign = document.getElementById('btnUnlockSupervisorSign');
   const repeatDoseOptions = document.querySelectorAll('#repeatDoseGroup .btn-toggle-option');
   const repeatDoseRemarkContainer = document.getElementById('repeatDoseRemarkContainer');
   const inputRepeatDoseRemark = document.getElementById('inputRepeatDoseRemark');
@@ -399,16 +409,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     updateDoseChipsActive();
+    syncWasteFromDose();
     validateFormStatus();
+  }
+
+  function calcWasteFromDose(doseStr) {
+    const dose = parseFloat(doseStr);
+    if (isNaN(dose) || dose <= 0) return '0';
+    const rem = (10 - (dose % 10)) % 10;
+    const rounded = Math.round(rem * 100) / 100;
+    return String(rounded >= 10 ? 0 : rounded);
+  }
+
+  function syncWasteFromDose() {
+    if (formData.isLockedForSign) return;
+    const waste = calcWasteFromDose(formData.dosage);
+    formData.wasteDosage = waste;
+    if (wasteDosageInput) wasteDosageInput.value = waste;
+    if (typeof updateSupervisorSignUI === 'function') updateSupervisorSignUI();
+  }
+
+  if (wasteDosageInput) {
+    wasteDosageInput.addEventListener('input', () => {
+      if (formData.isLockedForSign) return;
+      let val = parseFloat(wasteDosageInput.value);
+      if (isNaN(val) || val < 0) val = 0;
+      if (val >= 10) {
+        showToast('銷毀劑量應小於 10 mg（大於 10 mg 屬損毀另案處理）', 'warning');
+        val = 9.9;
+        wasteDosageInput.value = '9.9';
+      }
+      formData.wasteDosage = String(Math.round(val * 100) / 100);
+      if (typeof updateSupervisorSignUI === 'function') updateSupervisorSignUI();
+      validateFormStatus();
+    });
   }
 
   // 初始給藥劑量設定：預設 5mg
   dosageInput.value = '5';
   formData.dosage = '5';
+  formData.wasteDosage = '5';
+  if (wasteDosageInput) wasteDosageInput.value = '5';
   updateDoseChipsActive();
 
   dosageInput.addEventListener('input', () => {
-    // 輸入過程中即時更新體積預覽
+    // 輸入過程中即時更新體積預覽與銷毀量
     const raw = dosageInput.value.trim();
     const m = raw.match(/([0-9]+(?:\.[0-9]+)?)/);
     if (m && dosageVolumeEq) {
@@ -417,6 +462,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dosageVolumeEq.textContent = `＝ ${v} ml (換算 ${Math.round(v * 10)}mg)`;
       } else {
         dosageVolumeEq.textContent = `＝ ${(v / 10).toFixed(1).replace(/\.0$/, '')} ml`;
+        formData.dosage = String(v);
+        syncWasteFromDose();
       }
     }
   });
@@ -459,6 +506,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       updateDoseChipsActive();
+      syncWasteFromDose();
       playBeepSound();
       validateFormStatus();
     });
@@ -529,7 +577,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     formData.dosage = '5';
+    formData.wasteDosage = '5';
     dosageInput.value = '5';
+    if (wasteDosageInput) wasteDosageInput.value = '5';
     if (dosageVolumeEq) dosageVolumeEq.textContent = '＝ 0.5 ml';
     if (dosageCorrectionBadge) dosageCorrectionBadge.style.display = 'none';
 
@@ -583,6 +633,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     formData.emtSignature = '';
     resetSignatureBoxUI('emtSigBox', '救護人員簽名', 'fa-user-nurse');
+
+    // 重置主管銷毀簽核與鎖定狀態
+    if (typeof stopRemoteSignPolling === 'function') stopRemoteSignPolling();
+    formData.supervisorSignature = '';
+    formData.supervisorSignedAt = '';
+    formData.supervisorSignMode = '';
+    formData.remoteSignId = '';
+    formData.remoteSignToken = '';
+    formData.isLockedForSign = false;
+    if (typeof setCaseFieldsLocked === 'function') setCaseFieldsLocked(false);
+    if (typeof updateSupervisorSignUI === 'function') updateSupervisorSignUI();
 
     // 時間更新為現在
     initDateTime();
@@ -833,10 +894,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const canvasElem = document.getElementById('signatureCanvas');
   activeSignaturePad = new TouchSignaturePad(canvasElem);
 
+  let remoteSupervisorDraftSig = '';
+
   window.openSignatureModal = function(type) {
     currentSigningType = type;
     const titleElem = document.getElementById('sigModalTitle');
-    titleElem.textContent = type === 'patient' ? '病患 / 家屬手寫簽名' : '救護人員手寫簽名';
+    const titleMap = {
+      patient: '病患 / 家屬手寫簽名',
+      emt: '救護人員手寫簽名',
+      supervisor: '主管剩餘劑量銷毀確認簽核',
+      remoteSupervisor: '主管遠端銷毀確認手寫簽名'
+    };
+    titleElem.textContent = titleMap[type] || '手寫簽名';
     
     // 立刻清空繪圖板，防止殘留上一個對象的簽名軌跡
     if (activeSignaturePad) activeSignaturePad.clear();
@@ -845,7 +914,11 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
       activeSignaturePad.resize();
       activeSignaturePad.clear();
-      const existing = type === 'patient' ? formData.patientSignature : formData.emtSignature;
+      let existing = '';
+      if (type === 'patient') existing = formData.patientSignature;
+      else if (type === 'emt') existing = formData.emtSignature;
+      else if (type === 'supervisor') existing = formData.supervisorSignature;
+      else if (type === 'remoteSupervisor') existing = remoteSupervisorDraftSig;
       if (existing) {
         activeSignaturePad.fromDataURL(existing);
       }
@@ -955,9 +1028,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if (currentSigningType === 'patient') {
         formData.patientSignature = '';
         resetSignatureBoxUI('patientSigBox', '病患 / 家屬簽名', 'fa-pen-fancy');
-      } else {
+      } else if (currentSigningType === 'emt') {
         formData.emtSignature = '';
         resetSignatureBoxUI('emtSigBox', '救護人員簽名', 'fa-user-nurse');
+      } else if (currentSigningType === 'supervisor') {
+        formData.supervisorSignature = '';
+        formData.supervisorSignedAt = '';
+        formData.supervisorSignMode = '';
+        updateSupervisorSignUI();
+      } else if (currentSigningType === 'remoteSupervisor') {
+        remoteSupervisorDraftSig = '';
+        resetSignatureBoxUI('remoteSupervisorSigBox', '主管確認銷毀簽名', 'fa-pen-fancy');
       }
       showToast('已確認並恢復為空白簽名狀態');
     } else {
@@ -965,9 +1046,20 @@ document.addEventListener('DOMContentLoaded', () => {
       if (currentSigningType === 'patient') {
         formData.patientSignature = sigDataUrl;
         updateSignatureBoxUI('patientSigBox', sigDataUrl);
-      } else {
+      } else if (currentSigningType === 'emt') {
         formData.emtSignature = sigDataUrl;
         updateSignatureBoxUI('emtSigBox', sigDataUrl);
+      } else if (currentSigningType === 'supervisor') {
+        formData.supervisorSignature = sigDataUrl;
+        formData.supervisorSignedAt = formatTaiwanTimestamp();
+        formData.supervisorSignMode = 'onsite';
+        formData.isLockedForSign = true;
+        setCaseFieldsLocked(true);
+        stopRemoteSignPolling();
+        updateSupervisorSignUI();
+      } else if (currentSigningType === 'remoteSupervisor') {
+        remoteSupervisorDraftSig = sigDataUrl;
+        updateSignatureBoxUI('remoteSupervisorSigBox', sigDataUrl);
       }
       showToast('簽名已完成儲存！');
     }
@@ -976,14 +1068,303 @@ document.addEventListener('DOMContentLoaded', () => {
     validateFormStatus();
   });
 
-  function updateSignatureBoxUI(boxId, dataUrl) {
+  function updateSignatureBoxUI(boxId, dataUrl, lockBadgeText = '') {
     const box = document.getElementById(boxId);
+    if (!box) return;
     box.classList.add('has-signature');
+    const badgeHtml = lockBadgeText
+      ? `<span class="re-sign-badge" style="background:#065F46;"><i class="fas fa-lock"></i> ${lockBadgeText}</span>`
+      : `<span class="re-sign-badge"><i class="fas fa-edit"></i> 點擊重簽</span>`;
     box.innerHTML = `
-      <span class="re-sign-badge"><i class="fas fa-edit"></i> 點擊重簽</span>
+      ${badgeHtml}
       <img src="${dataUrl}" class="signature-preview-img" alt="簽名預覽" />
     `;
   }
+
+  // =========================================================================
+  // 主管剩餘劑量銷毀簽核 (現場簽核 + 遠端網址簽核 + 自動輪詢 + 防竄改鎖定)
+  // =========================================================================
+  const supervisorSigContainer = document.getElementById('supervisorSigContainer');
+  const supervisorSigBox = document.getElementById('supervisorSigBox');
+  const supWastePill = document.getElementById('supWastePill');
+  const supStatusTag = document.getElementById('supStatusTag');
+  const supervisorSignedAtDisplay = document.getElementById('supervisorSignedAtDisplay');
+  const supervisorSignedAtText = document.getElementById('supervisorSignedAtText');
+  const remoteSignBar = document.getElementById('remoteSignBar');
+  const btnGenRemoteSign = document.getElementById('btnGenRemoteSign');
+  const btnCheckRemoteSignNow = document.getElementById('btnCheckRemoteSignNow');
+  const remoteSignLinkBox = document.getElementById('remoteSignLinkBox');
+  const remotePollingStatus = document.getElementById('remotePollingStatus');
+  const remoteSignUrlInput = document.getElementById('remoteSignUrlInput');
+  const btnCopyRemoteSignUrl = document.getElementById('btnCopyRemoteSignUrl');
+  const btnShareLineRemoteSign = document.getElementById('btnShareLineRemoteSign');
+  const btnDeleteSupervisorSig = document.getElementById('btnDeleteSupervisorSig');
+
+  let remotePollTimer = null;
+
+  function formatTaiwanTimestamp(dateObj = new Date()) {
+    const yyyy = dateObj.getFullYear();
+    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    const hh = String(dateObj.getHours()).padStart(2, '0');
+    const mi = String(dateObj.getMinutes()).padStart(2, '0');
+    const ss = String(dateObj.getSeconds()).padStart(2, '0');
+    return `${yyyy}/${mm}/${dd} ${hh}:${mi}:${ss}`;
+  }
+
+  function setCaseFieldsLocked(locked) {
+    formData.isLockedForSign = !!locked;
+    const lockTargets = [unitInput, formNoInput, dateInput, timeInput, dosageInput, wasteDosageInput];
+    lockTargets.forEach(el => {
+      if (!el) return;
+      el.readOnly = !!locked;
+      el.classList.toggle('field-locked', !!locked);
+    });
+    if (btnSetNow) btnSetNow.disabled = !!locked;
+    document.querySelectorAll('#routeGroup .btn-toggle-option, .btn-dose-chip').forEach(btn => {
+      btn.disabled = !!locked;
+      btn.classList.toggle('field-locked', !!locked);
+    });
+    if (doseLockBanner) {
+      doseLockBanner.style.display = locked ? 'flex' : 'none';
+    }
+  }
+
+  function stopRemoteSignPolling() {
+    if (remotePollTimer) {
+      clearInterval(remotePollTimer);
+      remotePollTimer = null;
+    }
+  }
+
+  async function checkRemoteSignStatusOnce(silent = true) {
+    if (!formData.remoteSignId || !formData.remoteSignToken) return;
+    try {
+      const res = await syncManager.getRemoteSignStatus(formData.remoteSignId, formData.remoteSignToken);
+      if (res && res.result === 'success' && res.status === 'signed' && res.supervisorSignature) {
+        stopRemoteSignPolling();
+        formData.supervisorSignature = res.supervisorSignature;
+        formData.supervisorSignedAt = res.supervisorSignedAt || formatTaiwanTimestamp();
+        formData.supervisorSignMode = 'remote';
+        formData.isLockedForSign = true;
+        setCaseFieldsLocked(true);
+        updateSupervisorSignUI();
+        validateFormStatus();
+        showToast('✅ 主管已完成遠端銷毀簽核並已鎖定！', 'success');
+      } else if (!silent && res && res.result === 'success') {
+        showToast('主管尚未完成簽核，系統持續自動檢查中...');
+      }
+    } catch (err) {
+      if (!silent) showToast('檢查簽核狀態失敗：' + err.message, 'warning');
+    }
+  }
+
+  function startRemoteSignPolling() {
+    stopRemoteSignPolling();
+    remotePollTimer = setInterval(() => {
+      if (!formData.supervisorSignature && formData.remoteSignId && formData.remoteSignToken) {
+        checkRemoteSignStatusOnce(true);
+      } else {
+        stopRemoteSignPolling();
+      }
+    }, 4000);
+  }
+
+  function updateSupervisorSignUI() {
+    const wasteNum = parseFloat(formData.wasteDosage || '0') || 0;
+    if (supWastePill) supWastePill.textContent = `銷毀 ${wasteNum} mg`;
+
+    if (!supervisorSigContainer) return;
+
+    if (wasteNum <= 0) {
+      supervisorSigContainer.classList.add('exempt');
+      if (supStatusTag) {
+        supStatusTag.textContent = '無剩餘免簽';
+        supStatusTag.className = 'sup-status-tag exempt';
+      }
+      if (supervisorSigBox) {
+        supervisorSigBox.classList.remove('has-signature');
+        supervisorSigBox.innerHTML = `
+          <div class="signature-prompt">
+            <i class="fas fa-check-circle" style="color:#64748B;"></i>
+            <span>無剩餘劑量需銷毀（0 mg），免主管簽核</span>
+          </div>
+        `;
+      }
+      if (supervisorSignedAtDisplay) supervisorSignedAtDisplay.style.display = 'none';
+      if (remoteSignBar) remoteSignBar.style.display = 'none';
+      return;
+    }
+
+    supervisorSigContainer.classList.remove('exempt');
+    if (remoteSignBar) remoteSignBar.style.display = formData.supervisorSignature ? 'none' : 'block';
+
+    if (formData.supervisorSignature) {
+      if (supStatusTag) {
+        supStatusTag.textContent = formData.supervisorSignMode === 'remote' ? '已遠端簽核鎖定' : '已現場簽核鎖定';
+        supStatusTag.className = 'sup-status-tag signed';
+      }
+      updateSignatureBoxUI('supervisorSigBox', formData.supervisorSignature, '已鎖定');
+      if (supervisorSignedAtDisplay && supervisorSignedAtText) {
+        supervisorSignedAtText.textContent = formData.supervisorSignedAt || '';
+        supervisorSignedAtDisplay.style.display = formData.supervisorSignedAt ? 'flex' : 'none';
+      }
+      if (remoteSignLinkBox) remoteSignLinkBox.style.display = 'none';
+      if (btnCheckRemoteSignNow) btnCheckRemoteSignNow.style.display = 'none';
+    } else {
+      if (supStatusTag) {
+        supStatusTag.textContent = formData.remoteSignId ? '等待遠端簽核中' : '待簽核';
+        supStatusTag.className = 'sup-status-tag';
+      }
+      if (supervisorSigBox) {
+        supervisorSigBox.classList.remove('has-signature');
+        supervisorSigBox.innerHTML = `
+          <div class="signature-prompt">
+            <i class="fas fa-user-check" style="color:#D97706;"></i>
+            <span>主管在現場：點擊此處直接用手指簽名</span>
+          </div>
+        `;
+      }
+      if (supervisorSignedAtDisplay) supervisorSignedAtDisplay.style.display = 'none';
+    }
+  }
+
+  function voidSupervisorSignatureAndUnlock() {
+    stopRemoteSignPolling();
+    formData.supervisorSignature = '';
+    formData.supervisorSignedAt = '';
+    formData.supervisorSignMode = '';
+    formData.remoteSignId = '';
+    formData.remoteSignToken = '';
+    setCaseFieldsLocked(false);
+    if (remoteSignLinkBox) remoteSignLinkBox.style.display = 'none';
+    if (btnCheckRemoteSignNow) btnCheckRemoteSignNow.style.display = 'none';
+    updateSupervisorSignUI();
+    validateFormStatus();
+  }
+
+  if (supervisorSigBox) {
+    supervisorSigBox.addEventListener('click', (e) => {
+      if (e.target.closest('.btn-clear-sig')) return;
+      const wasteNum = parseFloat(formData.wasteDosage || '0') || 0;
+      if (wasteNum <= 0) {
+        showToast('目前剩餘銷毀劑量為 0 mg，無需主管簽核');
+        return;
+      }
+      if (formData.supervisorSignature) {
+        showToast('主管已完成簽核並鎖定，若需重簽請先點「清除/作廢」或「解除鎖定」', 'warning');
+        return;
+      }
+      openSignatureModal('supervisor');
+    });
+  }
+
+  if (btnDeleteSupervisorSig) {
+    btnDeleteSupervisorSig.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!formData.supervisorSignature && !formData.remoteSignId) return;
+      if (confirm('確定要作廢目前的主管銷毀簽核（或取消遠端連結）並解除欄位鎖定嗎？')) {
+        voidSupervisorSignatureAndUnlock();
+        showToast('已作廢主管簽核並解除鎖定');
+      }
+    });
+  }
+
+  if (btnUnlockSupervisorSign) {
+    btnUnlockSupervisorSign.addEventListener('click', () => {
+      if (confirm('解除鎖定將會作廢已取得的主管銷毀簽核（或原遠端連結），需重新請主管簽核。確定繼續？')) {
+        voidSupervisorSignatureAndUnlock();
+        showToast('已解除鎖定並作廢主管簽核');
+      }
+    });
+  }
+
+  if (btnGenRemoteSign) {
+    btnGenRemoteSign.addEventListener('click', async () => {
+      formData.unit = unitInput ? unitInput.value.trim() : '光明91';
+      formData.formNo = formNoInput.value.trim();
+      const wasteNum = parseFloat(formData.wasteDosage || '0') || 0;
+
+      if (!formData.formNo) {
+        showToast('產生遠端簽核連結前，請先填寫「救護紀錄表單號」！', 'warning');
+        formNoInput.focus();
+        return;
+      }
+      if (wasteNum <= 0) {
+        showToast('剩餘銷毀劑量為 0 mg，無需產生主管簽核連結');
+        return;
+      }
+
+      btnGenRemoteSign.disabled = true;
+      btnGenRemoteSign.innerHTML = `<i class="fas fa-spinner fa-spin"></i> 產生雲端連結中...`;
+
+      try {
+        const signId = 'SIG_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6).toUpperCase();
+        const token = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+
+        const res = await syncManager.createRemoteSignRequest({
+          signId,
+          token,
+          unit: formData.unit,
+          formNo: formData.formNo,
+          date: formData.date,
+          time: formData.time,
+          route: formData.route,
+          dosage: formData.dosage,
+          wasteDosage: formData.wasteDosage
+        });
+
+        if (res && res.result === 'success') {
+          formData.remoteSignId = res.signId || signId;
+          formData.remoteSignToken = res.token || token;
+          setCaseFieldsLocked(true);
+
+          const baseUrl = window.location.href.split('?')[0];
+          const shareUrl = `${baseUrl}?signId=${encodeURIComponent(formData.remoteSignId)}&token=${encodeURIComponent(formData.remoteSignToken)}`;
+          if (remoteSignUrlInput) remoteSignUrlInput.value = shareUrl;
+          if (remoteSignLinkBox) remoteSignLinkBox.style.display = 'block';
+          if (btnCheckRemoteSignNow) btnCheckRemoteSignNow.style.display = 'inline-flex';
+          if (remotePollingStatus) {
+            remotePollingStatus.innerHTML = `<i class="fas fa-spinner fa-spin"></i> 等待主管遠端簽核中（系統每 4 秒自動檢查）...`;
+          }
+
+          updateSupervisorSignUI();
+          startRemoteSignPolling();
+          showToast('已產生遠端簽核連結並鎖定劑量欄位，請傳送給主管！', 'success');
+        } else {
+          throw new Error((res && res.message) || '雲端建立失敗');
+        }
+      } catch (err) {
+        showToast('產生遠端連結失敗：' + err.message, 'warning');
+      } finally {
+        btnGenRemoteSign.disabled = false;
+        btnGenRemoteSign.innerHTML = `<i class="fas fa-link"></i> 主管未隨行：產生遠端簽核連結`;
+      }
+    });
+  }
+
+  if (btnCheckRemoteSignNow) {
+    btnCheckRemoteSignNow.addEventListener('click', () => checkRemoteSignStatusOnce(false));
+  }
+
+  if (btnCopyRemoteSignUrl) {
+    btnCopyRemoteSignUrl.addEventListener('click', () => {
+      if (!remoteSignUrlInput || !remoteSignUrlInput.value) return;
+      navigator.clipboard.writeText(remoteSignUrlInput.value).then(() => {
+        showToast('已複製主管簽核連結！');
+      });
+    });
+  }
+
+  if (btnShareLineRemoteSign) {
+    btnShareLineRemoteSign.addEventListener('click', () => {
+      if (!remoteSignUrlInput || !remoteSignUrlInput.value) return;
+      const msg = `【Nalbuphine 剩餘劑量銷毀簽核】\n單位：${formData.unit}\n單號：${formData.formNo}\n實打：${formData.dosage}mg (${formData.route}) / 銷毀：${formData.wasteDosage}mg\n請點選連結簽核：\n${remoteSignUrlInput.value}`;
+      window.open(`https://line.me/R/msg/text/?${encodeURIComponent(msg)}`, '_blank');
+    });
+  }
+
+  updateSupervisorSignUI();
 
   // Section Validation Status Badges
   function setSectionBadge(cardId, badgeId, isValid, label = '') {
@@ -1012,7 +1393,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const sec5Valid = formData.vasUnconscious || (formData.vasPre !== undefined && formData.vasPost !== undefined);
     const sec6Valid = formData.sideEffects && formData.sideEffects.length > 0;
     const sec7Valid = formData.satisfactionUnconscious || !!formData.satisfaction;
-    const sec8Valid = !!formData.emtSignature; // 救護員必簽，病患未簽在送出前跳提醒但允許送出
+    const wasteNum = parseFloat(formData.wasteDosage || '0') || 0;
+    const needSupSign = wasteNum > 0;
+    const sec8Valid = !!formData.emtSignature && (!needSupSign || !!formData.supervisorSignature);
 
     setSectionBadge('cardSec1', 'statusBadgeSec1', sec1Valid, sec1Valid ? '完成' : '必填');
     setSectionBadge('cardSec2', 'statusBadgeSec2', sec2Valid, sec2Valid ? '完成' : '必填');
@@ -1025,6 +1408,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let sigBadgeLabel = '簽名完成';
     if (!formData.emtSignature) {
       sigBadgeLabel = '未完成 (缺救護員簽名)';
+    } else if (needSupSign && !formData.supervisorSignature) {
+      sigBadgeLabel = '未完成 (缺主管銷毀簽核)';
     } else if (formData.patientUnableToSign) {
       sigBadgeLabel = '完成 (因故無法簽名)';
     } else if (!formData.patientSignature) {
@@ -1278,6 +1663,16 @@ document.addEventListener('DOMContentLoaded', () => {
       resetSignatureBoxUI('emtSigBox', '救護人員簽名', 'fa-user-nurse');
     }
 
+    formData.wasteDosage = data.wasteDosage !== undefined ? String(data.wasteDosage) : calcWasteFromDose(formData.dosage);
+    if (wasteDosageInput) wasteDosageInput.value = formData.wasteDosage;
+    formData.supervisorSignature = data.supervisorSignature || '';
+    formData.supervisorSignedAt = data.supervisorSignedAt || '';
+    formData.supervisorSignMode = data.supervisorSignMode || '';
+    formData.remoteSignId = data.remoteSignId || '';
+    formData.remoteSignToken = data.remoteSignToken || '';
+    setCaseFieldsLocked(!!formData.supervisorSignature);
+    updateSupervisorSignUI();
+
     editFormNoText.textContent = data.formNo || '無單號';
     editModeBanner.style.display = 'flex';
 
@@ -1350,6 +1745,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!formData.emtSignature) {
       showToast('請完成「救護人員簽名」！', 'warning');
       openSignatureModal('emt');
+      return;
+    }
+
+    const wasteDoseCheck = parseFloat(formData.wasteDosage || '0') || 0;
+    if (wasteDoseCheck > 0 && !formData.supervisorSignature) {
+      showToast(`剩餘銷毀劑量 ${wasteDoseCheck} mg 需完成「主管銷毀簽核」！`, 'warning');
       return;
     }
 
@@ -2125,7 +2526,120 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {}
   }
 
-  // Initialize Barcode Scanner & Tablet Smart Tools
-  initBarcodeScanner();
-  initTabletSmartTools();
+  // 遠端主管簽核專屬視圖 (當網址帶有 ?signId=...&token=... 時啟用)
+  async function initSupervisorRemoteMode() {
+    const params = new URLSearchParams(window.location.search);
+    const signId = params.get('signId');
+    const token = params.get('token');
+    if (!signId || !token) return false;
+
+    const mainEl = document.querySelector('main.main-container');
+    const footerEl = document.querySelector('footer.sticky-footer-bar');
+    const headerActionsEl = document.querySelector('header.app-header .header-actions');
+    const remoteView = document.getElementById('supervisorRemoteView');
+
+    if (mainEl) mainEl.style.display = 'none';
+    if (footerEl) footerEl.style.display = 'none';
+    if (headerActionsEl) headerActionsEl.style.display = 'none';
+    if (remoteView) remoteView.style.display = 'block';
+
+    const loadingEl = document.getElementById('remoteViewLoading');
+    const errorEl = document.getElementById('remoteViewError');
+    const errorMsgEl = document.getElementById('remoteViewErrorMsg');
+    const contentEl = document.getElementById('remoteViewContent');
+    const summaryEl = document.getElementById('remoteCaseSummary');
+    const successEl = document.getElementById('remoteViewSuccess');
+    const successTimeEl = document.getElementById('remoteViewSuccessTime');
+    const remoteSigBox = document.getElementById('remoteSupervisorSigBox');
+    const btnSubmitRemote = document.getElementById('btnSubmitRemoteSupervisorSign');
+
+    try {
+      const res = await syncManager.getRemoteSignStatus(signId, token);
+      if (loadingEl) loadingEl.style.display = 'none';
+
+      if (!res || res.result !== 'success') {
+        if (errorMsgEl) errorMsgEl.textContent = (res && res.message) || '找不到此遠端簽核案件或驗證碼無效';
+        if (errorEl) errorEl.style.display = 'block';
+        return true;
+      }
+
+      if (res.status === 'signed') {
+        if (successTimeEl) successTimeEl.textContent = `簽核時間：${res.supervisorSignedAt || ''}`;
+        if (successEl) successEl.style.display = 'block';
+        return true;
+      }
+
+      if (res.status === 'expired') {
+        if (errorMsgEl) errorMsgEl.textContent = '此遠端簽核連結已超過 24 小時效期，請聯繫出勤人員重新產生連結。';
+        if (errorEl) errorEl.style.display = 'block';
+        return true;
+      }
+
+      // 格式化民國日期顯示
+      let minguoDateDisplay = res.date || '';
+      if (res.date && res.date.includes('-')) {
+        const p = res.date.split('-');
+        minguoDateDisplay = `民國 ${parseInt(p[0], 10) - 1911} 年 ${p[1]} 月 ${p[2]} 日`;
+      }
+
+      if (summaryEl) {
+        summaryEl.innerHTML = `
+          <div><strong>出勤單位：</strong>${res.unit || '光明91'}</div>
+          <div><strong>救護紀錄表單號：</strong>${res.formNo || ''}</div>
+          <div><strong>給藥日期時間：</strong>${minguoDateDisplay} ${res.time || ''}</div>
+          <div><strong>給藥途徑與實打劑量：</strong>${res.route || ''} ${res.dosage || ''} mg</div>
+          <div class="remote-waste-highlight">
+            <i class="fas fa-biohazard"></i> 案件內容銷毀確認：應銷毀剩餘劑量 ${res.wasteDosage || 0} mg
+          </div>
+        `;
+      }
+      if (contentEl) contentEl.style.display = 'block';
+
+      if (remoteSigBox) {
+        remoteSigBox.addEventListener('click', () => {
+          openSignatureModal('remoteSupervisor');
+        });
+      }
+
+      if (btnSubmitRemote) {
+        btnSubmitRemote.addEventListener('click', async () => {
+          if (!remoteSupervisorDraftSig) {
+            showToast('請先點擊簽名區完成主管手寫簽名！', 'warning');
+            openSignatureModal('remoteSupervisor');
+            return;
+          }
+          btnSubmitRemote.disabled = true;
+          btnSubmitRemote.innerHTML = `<i class="fas fa-spinner fa-spin"></i> 傳送簽核中...`;
+          try {
+            const submitRes = await syncManager.submitSupervisorSign(signId, token, remoteSupervisorDraftSig);
+            if (submitRes && submitRes.result === 'success') {
+              if (contentEl) contentEl.style.display = 'none';
+              if (successTimeEl) successTimeEl.textContent = `簽核時間戳記：${submitRes.supervisorSignedAt || formatTaiwanTimestamp()}`;
+              if (successEl) successEl.style.display = 'block';
+              showToast('已完成銷毀確認簽核！');
+            } else {
+              throw new Error((submitRes && submitRes.message) || '送出失敗');
+            }
+          } catch (err) {
+            showToast('送出簽核失敗：' + err.message, 'warning');
+            btnSubmitRemote.disabled = false;
+            btnSubmitRemote.innerHTML = `<i class="fas fa-check-circle"></i> 確認銷毀並送出簽核`;
+          }
+        });
+      }
+    } catch (err) {
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (errorMsgEl) errorMsgEl.textContent = '連線雲端失敗：' + err.message;
+      if (errorEl) errorEl.style.display = 'block';
+    }
+    return true;
+  }
+
+  // Initialize Barcode Scanner & Tablet Smart Tools (or Remote Supervisor Mode)
+  initSupervisorRemoteMode().then((isRemoteMode) => {
+    if (!isRemoteMode) {
+      initBarcodeScanner();
+      initTabletSmartTools();
+    }
+  });
 });
