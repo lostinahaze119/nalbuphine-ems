@@ -1105,6 +1105,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnDeleteSupervisorSig = document.getElementById('btnDeleteSupervisorSig');
 
   let remotePollTimer = null;
+  const PENDING_REMOTE_SIGN_KEY = 'nalbuphine_pending_remote_sign';
 
   function formatTaiwanTimestamp(dateObj = new Date()) {
     const yyyy = dateObj.getFullYear();
@@ -1114,6 +1115,36 @@ document.addEventListener('DOMContentLoaded', () => {
     const mi = String(dateObj.getMinutes()).padStart(2, '0');
     const ss = String(dateObj.getSeconds()).padStart(2, '0');
     return `${yyyy}/${mm}/${dd} ${hh}:${mi}:${ss}`;
+  }
+
+  function formatTimestampDisplay(val) {
+    if (!val) return '';
+    if (typeof val === 'string' && val.includes('T') && val.includes('Z')) {
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) return formatTaiwanTimestamp(d);
+    }
+    return String(val);
+  }
+
+  function savePendingRemoteSign() {
+    if (!formData.remoteSignId || !formData.remoteSignToken) return;
+    try {
+      localStorage.setItem(PENDING_REMOTE_SIGN_KEY, JSON.stringify({
+        signId: formData.remoteSignId,
+        token: formData.remoteSignToken,
+        unit: formData.unit,
+        formNo: formData.formNo,
+        date: formData.date,
+        time: formData.time,
+        route: formData.route,
+        dosage: formData.dosage,
+        wasteDosage: formData.wasteDosage
+      }));
+    } catch (e) {}
+  }
+
+  function clearPendingRemoteSign() {
+    try { localStorage.removeItem(PENDING_REMOTE_SIGN_KEY); } catch (e) {}
   }
 
   function setCaseFieldsLocked(locked) {
@@ -1147,8 +1178,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await syncManager.getRemoteSignStatus(formData.remoteSignId, formData.remoteSignToken);
       if (res && res.result === 'success' && res.status === 'signed' && res.supervisorSignature) {
         stopRemoteSignPolling();
+        clearPendingRemoteSign();
         formData.supervisorSignature = res.supervisorSignature;
-        formData.supervisorSignedAt = res.supervisorSignedAt || formatTaiwanTimestamp();
+        formData.supervisorSignedAt = formatTimestampDisplay(res.supervisorSignedAt) || formatTaiwanTimestamp();
         formData.supervisorSignMode = 'remote';
         formData.isLockedForSign = true;
         setCaseFieldsLocked(true);
@@ -1235,6 +1267,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function voidSupervisorSignatureAndUnlock() {
     stopRemoteSignPolling();
+    clearPendingRemoteSign();
     formData.supervisorSignature = '';
     formData.supervisorSignedAt = '';
     formData.supervisorSignMode = '';
@@ -1321,6 +1354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (res && res.result === 'success') {
           formData.remoteSignId = res.signId || signId;
           formData.remoteSignToken = res.token || token;
+          savePendingRemoteSign();
           setCaseFieldsLocked(true);
 
           const baseUrl = window.location.href.split('?')[0];
@@ -1799,6 +1833,7 @@ document.addEventListener('DOMContentLoaded', () => {
       previewModal.classList.remove('open');
 
       if (result.success) {
+        clearPendingRemoteSign();
         showToast(isUpdate ? '🎉 已成功覆蓋更新雲端與離線紀錄！' : (result.mode === 'cloud' ? '🎉 已成功上傳歸檔至 Google 雲端資料夾！' : result.message));
         
         editingRecordId = null;
@@ -2579,7 +2614,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (res.status === 'signed') {
-        if (successTimeEl) successTimeEl.textContent = `簽核時間：${res.supervisorSignedAt || ''}`;
+        if (successTimeEl) successTimeEl.textContent = `簽核時間：${formatTimestampDisplay(res.supervisorSignedAt)}`;
         if (successEl) successEl.style.display = 'block';
         return true;
       }
@@ -2629,7 +2664,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const submitRes = await syncManager.submitSupervisorSign(signId, token, remoteSupervisorDraftSig);
             if (submitRes && submitRes.result === 'success') {
               if (contentEl) contentEl.style.display = 'none';
-              if (successTimeEl) successTimeEl.textContent = `簽核時間戳記：${submitRes.supervisorSignedAt || formatTaiwanTimestamp()}`;
+              if (successTimeEl) successTimeEl.textContent = `簽核時間戳記：${formatTimestampDisplay(submitRes.supervisorSignedAt) || formatTaiwanTimestamp()}`;
               if (successEl) successEl.style.display = 'block';
               showToast('已完成銷毀確認簽核！');
             } else {
@@ -2650,9 +2685,67 @@ document.addEventListener('DOMContentLoaded', () => {
     return true;
   }
 
+  function restorePendingRemoteSign() {
+    try {
+      const raw = localStorage.getItem(PENDING_REMOTE_SIGN_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (!saved || !saved.signId || !saved.token) return;
+
+      formData.remoteSignId = saved.signId;
+      formData.remoteSignToken = saved.token;
+      if (saved.unit && unitInput) { formData.unit = saved.unit; unitInput.value = saved.unit; }
+      if (saved.formNo && formNoInput) { formData.formNo = saved.formNo; formNoInput.value = saved.formNo; }
+      if (saved.date && dateInput) { dateInput.value = saved.date; }
+      if (saved.time && timeInput) { timeInput.value = saved.time; }
+      updateDateTimeState();
+      if (saved.route) {
+        formData.route = saved.route;
+        document.querySelectorAll('#routeGroup .btn-toggle-option').forEach(b => {
+          b.classList.toggle('active', b.dataset.value === saved.route);
+        });
+      }
+      if (saved.dosage && dosageInput) {
+        formData.dosage = saved.dosage;
+        dosageInput.value = saved.dosage;
+        updateDoseChipsActive();
+      }
+      if (saved.wasteDosage !== undefined && wasteDosageInput) {
+        formData.wasteDosage = String(saved.wasteDosage);
+        wasteDosageInput.value = formData.wasteDosage;
+      }
+
+      setCaseFieldsLocked(true);
+      const baseUrl = window.location.href.split('?')[0];
+      const shareUrl = `${baseUrl}?signId=${encodeURIComponent(formData.remoteSignId)}&token=${encodeURIComponent(formData.remoteSignToken)}`;
+      if (remoteSignUrlInput) remoteSignUrlInput.value = shareUrl;
+      if (remoteSignLinkBox) remoteSignLinkBox.style.display = 'block';
+      if (btnCheckRemoteSignNow) btnCheckRemoteSignNow.style.display = 'inline-flex';
+      updateSupervisorSignUI();
+      validateFormStatus();
+
+      checkRemoteSignStatusOnce(true);
+      startRemoteSignPolling();
+    } catch (e) {}
+  }
+
+  function handleResumeCheck() {
+    if (!formData.supervisorSignature && formData.remoteSignId && formData.remoteSignToken) {
+      checkRemoteSignStatusOnce(true);
+      startRemoteSignPolling();
+    }
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) handleResumeCheck();
+  });
+  window.addEventListener('focus', handleResumeCheck);
+  window.addEventListener('pageshow', handleResumeCheck);
+
   // Initialize Barcode Scanner & Tablet Smart Tools (or Remote Supervisor Mode)
   initSupervisorRemoteMode().then((isRemoteMode) => {
     if (!isRemoteMode) {
+      restorePendingRemoteSign();
       initBarcodeScanner();
       initTabletSmartTools();
     }
