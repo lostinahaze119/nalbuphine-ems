@@ -221,24 +221,31 @@ class GoogleSyncManager {
       });
       return await response.json();
     } catch (corsErr) {
-      // iOS Safari / LINE 內建瀏覽器在 GAS 302 轉址時可能回傳 Load failed，先查狀態確認或改用 no-cors 送出後輪詢確認
+      // iOS Safari / LINE 內建瀏覽器在 GAS 302 轉址時常會拋出 Load failed，但請求實際上已送達 GAS
+      // 先輪詢確認第一次 POST 是否已經成功寫入（避免重複送出觸發「無法覆蓋」）
+      for (let i = 0; i < 4; i++) {
+        await new Promise(r => setTimeout(r, 1200));
+        try {
+          const check = await this.getRemoteSignStatus(signId, token);
+          if (check && check.result === 'success' && check.status === 'signed') {
+            return { result: 'success', status: 'signed', supervisorSignedAt: check.supervisorSignedAt };
+          }
+        } catch (e) {}
+      }
+
+      // 若仍未完成，改用 no-cors 補送（包裹 try/catch 避免轉址例外中斷）再輪詢確認
       try {
-        const preCheck = await this.getRemoteSignStatus(signId, token);
-        if (preCheck && preCheck.result === 'success' && preCheck.status === 'signed') {
-          return { result: 'success', status: 'signed', supervisorSignedAt: preCheck.supervisorSignedAt };
-        }
+        await fetch(this.gasUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          redirect: 'follow',
+          cache: 'no-store',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: bodyStr
+        });
       } catch (e) {}
 
-      await fetch(this.gasUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        redirect: 'follow',
-        cache: 'no-store',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: bodyStr
-      });
-
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 5; i++) {
         await new Promise(r => setTimeout(r, 1200));
         try {
           const check = await this.getRemoteSignStatus(signId, token);
