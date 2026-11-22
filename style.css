@@ -758,27 +758,77 @@ body {
   flex-wrap: wrap;
 }
 
+/* Fullscreen Signature Modal */
+#signatureModal.modal-overlay {
+  padding: 0;
+}
+
+#signatureModal .modal-content.modal-fullscreen-sig {
+  width: 100vw;
+  max-width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  border-radius: 0;
+  transform: translateY(16px);
+}
+
+#signatureModal.open .modal-content.modal-fullscreen-sig {
+  transform: translateY(0);
+}
+
+#signatureModal .modal-header {
+  padding: 10px 16px;
+  flex-shrink: 0;
+}
+
+#signatureModal .modal-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 10px 12px;
+  overflow: hidden;
+}
+
+#signatureModal .modal-footer {
+  flex-shrink: 0;
+  padding: 10px 14px;
+}
+
+#signatureModal .modal-footer .btn-secondary-large,
+#signatureModal .modal-footer .btn-primary-large {
+  flex: 1;
+  min-height: 46px;
+}
+
 /* Canvas Signature Area inside Modal */
 .signature-canvas-container {
+  flex: 1;
+  min-height: 180px;
+  width: 100%;
   border: 2px solid var(--teal-dark);
   border-radius: var(--radius-sm);
   background-color: #FFFFFF;
   position: relative;
   touch-action: none;
+  overflow: hidden;
 }
 
 canvas.signature-canvas {
   width: 100%;
-  height: 240px;
+  height: 100%;
   display: block;
   cursor: crosshair;
+  touch-action: none;
 }
 
 .signature-toolbar {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 10px;
+  margin-top: 8px;
   padding: 8px 12px;
   background-color: #F1F5F9;
   border-radius: var(--radius-sm);

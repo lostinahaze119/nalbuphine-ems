@@ -794,6 +794,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 150);
   };
 
+  let sigResizeTimer = null;
+  window.addEventListener('resize', () => {
+    if (!signatureModal.classList.contains('open') || !activeSignaturePad) return;
+    clearTimeout(sigResizeTimer);
+    sigResizeTimer = setTimeout(() => {
+      activeSignaturePad.resize();
+    }, 120);
+  });
+
   function updatePatientUnableToSignUI() {
     const box = document.getElementById('patientSigBox');
     if (!box) return;

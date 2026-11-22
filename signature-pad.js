@@ -15,54 +15,71 @@ class TouchSignaturePad {
     this.bindEvents();
   }
 
-  initCanvas() {
-    // Set actual resolution equal to display resolution for high DPI displays
-    const rect = this.canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    
-    this.canvas.width = (rect.width || 500) * dpr;
-    this.canvas.height = (rect.height || 260) * dpr;
-    
-    this.ctx.scale(dpr, dpr);
+  getCanvasDisplaySize() {
+    const target = this.canvas.parentElement || this.canvas;
+    const rect = target.getBoundingClientRect();
+    return {
+      width: Math.max(Math.floor(rect.width), 300),
+      height: Math.max(Math.floor(rect.height), 180)
+    };
+  }
+
+  applyContextSettings(dpr) {
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
     this.ctx.strokeStyle = this.penColor;
     this.ctx.lineWidth = this.lineWidth;
+  }
 
-    // Fill white background
+  initCanvas() {
+    const { width, height } = this.getCanvasDisplaySize();
+    const dpr = window.devicePixelRatio || 1;
+
+    this.canvas.width = width * dpr;
+    this.canvas.height = height * dpr;
+
+    this.applyContextSettings(dpr);
     this.clear();
   }
 
   resize() {
-    const tempImage = this.toDataURL();
-    const rect = this.canvas.parentElement.getBoundingClientRect();
+    const wasEmpty = this.isEmpty();
+    const tempImage = wasEmpty ? null : this.toDataURL();
+    const { width, height } = this.getCanvasDisplaySize();
     const dpr = window.devicePixelRatio || 1;
-    
-    this.canvas.width = (rect.width || 500) * dpr;
-    this.canvas.height = 260 * dpr;
-    
-    this.ctx.scale(dpr, dpr);
-    this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
-    this.ctx.strokeStyle = this.penColor;
-    this.ctx.lineWidth = this.lineWidth;
 
-    if (tempImage && !this.isEmpty()) {
-      const img = new Image();
-      img.onload = () => {
-        this.ctx.drawImage(img, 0, 0, rect.width, 260);
-      };
-      img.src = tempImage;
+    this.canvas.width = width * dpr;
+    this.canvas.height = height * dpr;
+
+    this.applyContextSettings(dpr);
+
+    if (tempImage) {
+      this.drawImageFitted(tempImage, width, height);
     } else {
       this.clear();
     }
   }
 
+  drawImageFitted(dataUrl, width, height) {
+    const img = new Image();
+    img.onload = () => {
+      this.clear();
+      const scale = Math.min(width / img.width, height / img.height);
+      const drawWidth = img.width * scale;
+      const drawHeight = img.height * scale;
+      const offsetX = (width - drawWidth) / 2;
+      const offsetY = (height - drawHeight) / 2;
+      this.ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+    };
+    img.src = dataUrl;
+  }
+
   bindEvents() {
     const getPos = (e) => {
       const rect = this.canvas.getBoundingClientRect();
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const clientX = e.touches && e.touches.length ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches && e.touches.length ? e.touches[0].clientY : e.clientY;
       return {
         x: clientX - rect.left,
         y: clientY - rect.top
@@ -74,17 +91,18 @@ class TouchSignaturePad {
       this.saveState();
       this.isDrawing = true;
       this.lastPoint = getPos(e);
-      
+
       this.ctx.beginPath();
       this.ctx.moveTo(this.lastPoint.x, this.lastPoint.y);
+      this.ctx.lineTo(this.lastPoint.x + 0.01, this.lastPoint.y + 0.01);
+      this.ctx.stroke();
     };
 
     const moveDraw = (e) => {
       if (!this.isDrawing) return;
       e.preventDefault();
       const currentPoint = getPos(e);
-      
-      // Smooth curve interpolation
+
       const midPoint = {
         x: (this.lastPoint.x + currentPoint.x) / 2,
         y: (this.lastPoint.y + currentPoint.y) / 2
@@ -96,23 +114,27 @@ class TouchSignaturePad {
       this.lastPoint = currentPoint;
     };
 
-    const endDraw = (e) => {
+    const endDraw = () => {
       if (this.isDrawing) {
         this.isDrawing = false;
         this.ctx.closePath();
       }
     };
 
-    // Pointer Events for Stylus & Touch
-    this.canvas.addEventListener('pointerdown', startDraw);
-    this.canvas.addEventListener('pointermove', moveDraw);
-    this.canvas.addEventListener('pointerup', endDraw);
-    this.canvas.addEventListener('pointerleave', endDraw);
-
-    // Fallback Touch Events
-    this.canvas.addEventListener('touchstart', startDraw, { passive: false });
-    this.canvas.addEventListener('touchmove', moveDraw, { passive: false });
-    this.canvas.addEventListener('touchend', endDraw);
+    if (window.PointerEvent) {
+      this.canvas.addEventListener('pointerdown', startDraw);
+      this.canvas.addEventListener('pointermove', moveDraw);
+      this.canvas.addEventListener('pointerup', endDraw);
+      this.canvas.addEventListener('pointercancel', endDraw);
+      this.canvas.addEventListener('pointerleave', endDraw);
+    } else {
+      this.canvas.addEventListener('touchstart', startDraw, { passive: false });
+      this.canvas.addEventListener('touchmove', moveDraw, { passive: false });
+      this.canvas.addEventListener('touchend', endDraw);
+      this.canvas.addEventListener('mousedown', startDraw);
+      this.canvas.addEventListener('mousemove', moveDraw);
+      this.canvas.addEventListener('mouseup', endDraw);
+    }
   }
 
   setPenColor(color) {
@@ -156,13 +178,8 @@ class TouchSignaturePad {
   }
 
   fromDataURL(dataUrl) {
-    const img = new Image();
-    img.onload = () => {
-      this.clear();
-      const rect = this.canvas.getBoundingClientRect();
-      this.ctx.drawImage(img, 0, 0, rect.width || 500, 260);
-    };
-    img.src = dataUrl;
+    const { width, height } = this.getCanvasDisplaySize();
+    this.drawImageFitted(dataUrl, width, height);
   }
 }
 
