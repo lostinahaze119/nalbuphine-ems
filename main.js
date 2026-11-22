@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sideEffects: ['無任何副作用'],
     sideEffectOther: '',
     satisfaction: '非常滿意 (5 分)',
+    satisfactionUnconscious: false,
     patientSignature: '',
     patientUnableToSign: false,
     emtSignature: ''
@@ -63,6 +64,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const chkVasUnconscious = document.getElementById('chkVasUnconscious');
   const lblVasUnconscious = document.getElementById('lblVasUnconscious');
   const vasEvalContent = document.getElementById('vasEvalContent');
+  const chkSatisfactionUnconscious = document.getElementById('chkSatisfactionUnconscious');
+  const lblSatisfactionUnconscious = document.getElementById('lblSatisfactionUnconscious');
+  const satisfactionEvalContent = document.getElementById('satisfactionEvalContent');
   
   // Modals
   const signatureModal = document.getElementById('signatureModal');
@@ -561,9 +565,12 @@ document.addEventListener('DOMContentLoaded', () => {
     sideEffectOtherInput.style.display = 'none';
 
     formData.satisfaction = '非常滿意 (5 分)';
+    formData.satisfactionUnconscious = false;
+    if (chkSatisfactionUnconscious) chkSatisfactionUnconscious.checked = false;
     document.querySelectorAll('.satisfaction-card').forEach(card => {
       card.classList.toggle('active', card.dataset.value === formData.satisfaction);
     });
+    updateSatisfactionUnconsciousUI();
 
     // 重置病患簽名與救護人員簽名 (每次皆需手動簽名，不自動帶入)
     formData.patientSignature = '';
@@ -795,15 +802,32 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // 滿意度 Cards
+  function updateSatisfactionUnconsciousUI() {
+    const disabled = !!formData.satisfactionUnconscious;
+    if (lblSatisfactionUnconscious) lblSatisfactionUnconscious.classList.toggle('checked', disabled);
+    if (satisfactionEvalContent) satisfactionEvalContent.classList.toggle('vas-disabled', disabled);
+  }
+
+  if (chkSatisfactionUnconscious) {
+    chkSatisfactionUnconscious.addEventListener('change', () => {
+      formData.satisfactionUnconscious = chkSatisfactionUnconscious.checked;
+      updateSatisfactionUnconsciousUI();
+      validateFormStatus();
+      showToast(formData.satisfactionUnconscious ? '已勾選：患者意識不清無法評估滿意度' : '已恢復滿意度評估');
+    });
+  }
+
   const satisfactionCards = document.querySelectorAll('.satisfaction-card');
   satisfactionCards.forEach(card => {
     card.addEventListener('click', () => {
+      if (formData.satisfactionUnconscious) return;
       satisfactionCards.forEach(c => c.classList.remove('active'));
       card.classList.add('active');
       formData.satisfaction = card.dataset.value;
       validateFormStatus();
     });
   });
+  updateSatisfactionUnconsciousUI();
 
   // Signature Canvas Engine
   const canvasElem = document.getElementById('signatureCanvas');
@@ -987,7 +1011,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sec4Valid = !!(formData.dosage && formData.route);
     const sec5Valid = formData.vasUnconscious || (formData.vasPre !== undefined && formData.vasPost !== undefined);
     const sec6Valid = formData.sideEffects && formData.sideEffects.length > 0;
-    const sec7Valid = !!formData.satisfaction;
+    const sec7Valid = formData.satisfactionUnconscious || !!formData.satisfaction;
     const sec8Valid = !!formData.emtSignature; // 救護員必簽，病患未簽在送出前跳提醒但允許送出
 
     setSectionBadge('cardSec1', 'statusBadgeSec1', sec1Valid, sec1Valid ? '完成' : '必填');
@@ -996,7 +1020,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setSectionBadge('cardSec4', 'statusBadgeSec4', sec4Valid, sec4Valid ? '完成' : '必填');
     setSectionBadge('cardSec5', 'statusBadgeSec5', sec5Valid, formData.vasUnconscious ? '完成 (無法評估)' : '完成');
     setSectionBadge('cardSec6', 'statusBadgeSec6', sec6Valid, sec6Valid ? '完成' : '必填');
-    setSectionBadge('cardSec7', 'statusBadgeSec7', sec7Valid, sec7Valid ? '完成' : '完成');
+    setSectionBadge('cardSec7', 'statusBadgeSec7', sec7Valid, formData.satisfactionUnconscious ? '完成 (無法評估)' : '完成');
 
     let sigBadgeLabel = '簽名完成';
     if (!formData.emtSignature) {
@@ -1227,9 +1251,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     formData.satisfaction = data.satisfaction || '非常滿意 (5 分)';
+    formData.satisfactionUnconscious = !!data.satisfactionUnconscious;
+    if (chkSatisfactionUnconscious) chkSatisfactionUnconscious.checked = formData.satisfactionUnconscious;
     document.querySelectorAll('.satisfaction-card').forEach(card => {
       card.classList.toggle('active', card.dataset.value === formData.satisfaction);
     });
+    updateSatisfactionUnconsciousUI();
 
     formData.patientUnableToSign = !!data.patientUnableToSign;
     if (chkPatientUnableToSign) chkPatientUnableToSign.checked = formData.patientUnableToSign;

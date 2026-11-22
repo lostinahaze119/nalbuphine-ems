@@ -148,7 +148,8 @@ class GoogleSyncManager {
       vasPost: record.data.vasUnconscious ? '' : record.data.vasPost,
       sideEffects: record.data.sideEffects ? record.data.sideEffects.join(', ') : '',
       sideEffectOther: record.data.sideEffectOther,
-      satisfaction: record.data.satisfaction,
+      satisfactionUnconscious: !!record.data.satisfactionUnconscious,
+      satisfaction: record.data.satisfactionUnconscious ? '患者意識不清無法評估' : record.data.satisfaction,
       patientSignature: record.data.patientSignature,
       emtSignature: record.data.emtSignature,
       pdfBase64: record.pdfBase64

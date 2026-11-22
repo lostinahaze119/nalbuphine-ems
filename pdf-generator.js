@@ -115,11 +115,14 @@ class NalbuphinePdfGenerator {
         <div style="margin-bottom: 8px;">
           <strong>對於給予止痛藥物滿意度</strong>
           <div style="margin-left: 18px; margin-top: 2px; line-height: 1.4;">
-            <div>${isRadio(formData.satisfaction, '非常滿意 (5 分)')} 非常滿意（5 分）</div>
-            <div>${isRadio(formData.satisfaction, '滿意 (4 分)')} 滿意（4 分）</div>
-            <div>${isRadio(formData.satisfaction, '普通 (3 分)')} 普通（3 分）</div>
-            <div>${isRadio(formData.satisfaction, '不滿意 (2 分)')} 不滿意（2 分）</div>
-            <div>${isRadio(formData.satisfaction, '非常不滿意 (1 分)')} 非常不滿意（1 分）</div>
+            <div>${formData.satisfactionUnconscious ? '■' : '□'} 患者意識不清無法評估</div>
+            <div style="${formData.satisfactionUnconscious ? 'color:#666;' : ''}">
+              <div>${!formData.satisfactionUnconscious && formData.satisfaction === '非常滿意 (5 分)' ? '■' : '□'} 非常滿意（5 分）</div>
+              <div>${!formData.satisfactionUnconscious && formData.satisfaction === '滿意 (4 分)' ? '■' : '□'} 滿意（4 分）</div>
+              <div>${!formData.satisfactionUnconscious && formData.satisfaction === '普通 (3 分)' ? '■' : '□'} 普通（3 分）</div>
+              <div>${!formData.satisfactionUnconscious && formData.satisfaction === '不滿意 (2 分)' ? '■' : '□'} 不滿意（2 分）</div>
+              <div>${!formData.satisfactionUnconscious && formData.satisfaction === '非常不滿意 (1 分)' ? '■' : '□'} 非常不滿意（1 分）</div>
+            </div>
           </div>
         </div>
 
