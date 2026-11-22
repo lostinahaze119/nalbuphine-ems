@@ -777,6 +777,14 @@ body {
   transform: translateY(0);
 }
 
+html.sig-modal-open,
+body.sig-modal-open {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+  height: 100% !important;
+}
+
 #signatureModal .modal-header {
   padding: 10px 16px;
   flex-shrink: 0;

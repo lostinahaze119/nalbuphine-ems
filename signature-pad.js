@@ -127,6 +127,11 @@ class TouchSignaturePad {
       this.canvas.addEventListener('pointerup', endDraw);
       this.canvas.addEventListener('pointercancel', endDraw);
       this.canvas.addEventListener('pointerleave', endDraw);
+
+      // iOS WKWebView / LINE 內建瀏覽器必須在非 passive 的 touch 事件中 preventDefault 才能徹底鎖住頁面捲動
+      const blockScroll = (e) => { if (e.cancelable) e.preventDefault(); };
+      this.canvas.addEventListener('touchstart', blockScroll, { passive: false });
+      this.canvas.addEventListener('touchmove', blockScroll, { passive: false });
     } else {
       this.canvas.addEventListener('touchstart', startDraw, { passive: false });
       this.canvas.addEventListener('touchmove', moveDraw, { passive: false });

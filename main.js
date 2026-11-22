@@ -910,6 +910,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // 立刻清空繪圖板，防止殘留上一個對象的簽名軌跡
     if (activeSignaturePad) activeSignaturePad.clear();
 
+    document.documentElement.classList.add('sig-modal-open');
+    document.body.classList.add('sig-modal-open');
     signatureModal.classList.add('open');
     setTimeout(() => {
       activeSignaturePad.resize();
@@ -1065,6 +1067,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     signatureModal.classList.remove('open');
+    document.documentElement.classList.remove('sig-modal-open');
+    document.body.classList.remove('sig-modal-open');
     validateFormStatus();
   });
 
@@ -1436,6 +1440,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.btn-close-modal, .btn-modal-cancel').forEach(btn => {
     btn.addEventListener('click', () => {
       signatureModal.classList.remove('open');
+      document.documentElement.classList.remove('sig-modal-open');
+      document.body.classList.remove('sig-modal-open');
       previewModal.classList.remove('open');
       settingsModal.classList.remove('open');
       historyModal.classList.remove('open');
