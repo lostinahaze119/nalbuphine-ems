@@ -16,6 +16,34 @@ const FOLDER_NAME = "Nalbuphine 止痛評估表";
 const SPREADSHEET_NAME = "Nalbuphine 止痛評估表紀錄總表";
 const SIGN_SHEET_NAME = "SupervisorSignRequests";
 
+const EXPECTED_HEADERS = [
+  "記錄識別碼",
+  "填表時間",
+  "出勤單位",
+  "給藥日期",
+  "給藥時間",
+  "救護紀錄表單號",
+  "性別",
+  "年齡",
+  "適用條件",
+  "給藥劑量(mg)",
+  "剩餘銷毀劑量(mg)",
+  "給藥途徑",
+  "重複給藥",
+  "重複給藥備註",
+  "給藥前 VAS",
+  "給藥後半小時 VAS",
+  "VAS 改善幅度",
+  "副作用反應",
+  "其他副作用說明",
+  "給藥滿意度",
+  "病患簽名狀態",
+  "救護人員簽名狀態",
+  "主管銷毀簽核狀態",
+  "主管簽核時間",
+  "雲端 PDF 檔案連結"
+];
+
 function doPost(e) {
   const lock = LockService.getScriptLock();
   try {
@@ -51,6 +79,12 @@ function doGet(e) {
       const ss = getOrCreateSpreadsheet(SPREADSHEET_NAME);
       return handleGetSignStatus(ss, params.signId, params.token);
     }
+    if (params.action === "repairSheet") {
+      const ss = getOrCreateSpreadsheet(SPREADSHEET_NAME);
+      const sheet = ss.getSheets()[0];
+      const count = ensureAndMigrateSheet(sheet);
+      return jsonResponse({ result: "success", message: "試算表欄位與歷史資料對齊完成", rowsProcessed: count });
+    }
     return ContentService.createTextOutput("Nalbuphine 止痛評估電子化系統 GAS Webhook 運作正常！");
   } catch (error) {
     return jsonResponse({
@@ -60,39 +94,74 @@ function doGet(e) {
   }
 }
 
+function repairSheet() {
+  const ss = getOrCreateSpreadsheet(SPREADSHEET_NAME);
+  const sheet = ss.getSheets()[0];
+  ensureAndMigrateSheet(sheet);
+}
+
+function ensureAndMigrateSheet(sheet) {
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(EXPECTED_HEADERS);
+    sheet.getRange(1, 1, 1, EXPECTED_HEADERS.length).setFontWeight("bold").setBackground("#0D9488").setFontColor("#FFFFFF");
+    return 1;
+  }
+
+  const lastRow = sheet.getLastRow();
+  const maxCols = Math.max(sheet.getLastColumn(), EXPECTED_HEADERS.length);
+  const allValues = sheet.getRange(1, 1, lastRow, maxCols).getValues();
+  const header = allValues[0];
+
+  let headersMatch = true;
+  for (let c = 0; c < EXPECTED_HEADERS.length; c++) {
+    if (String(header[c] || "").trim() !== EXPECTED_HEADERS[c]) {
+      headersMatch = false;
+      break;
+    }
+  }
+  if (headersMatch) return lastRow;
+
+  const isSigText = (val) => val === "已簽名" || val === "未簽名" || val === "因故無法簽名";
+  const isHttp = (val) => String(val || "").indexOf("http") === 0;
+
+  const migratedRows = [EXPECTED_HEADERS];
+  for (let i = 1; i < allValues.length; i++) {
+    const r = allValues[i];
+    const is25 = isHttp(r[24]) || isSigText(r[20]);
+    const is21 = !is25 && (isHttp(r[20]) || isSigText(r[18]));
+    const is19 = !is25 && !is21 && (isHttp(r[18]) || isSigText(r[16]));
+
+    if (is25) {
+      const row25 = r.slice(0, 25);
+      while (row25.length < 25) row25.push("");
+      migratedRows.push(row25);
+    } else if (is21) {
+      migratedRows.push([
+        r[0], r[1], "", r[2], r[3], r[4], r[5], r[6], r[7], r[8],
+        "", r[9], r[10], r[11], r[12], r[13], r[14], r[15], r[16], r[17],
+        r[18], r[19], "", "", r[20]
+      ]);
+    } else if (is19) {
+      migratedRows.push([
+        r[0], r[1], "", r[2], r[3], r[4], r[5], r[6], r[7], r[8],
+        "", r[9], "", "", r[10], r[11], r[12], r[13], r[14], r[15],
+        r[16], r[17], "", "", r[18]
+      ]);
+    } else {
+      const padded = r.slice(0, 25);
+      while (padded.length < 25) padded.push("");
+      migratedRows.push(padded);
+    }
+  }
+
+  sheet.getRange(1, 1, migratedRows.length, EXPECTED_HEADERS.length).setValues(migratedRows);
+  sheet.getRange(1, 1, 1, EXPECTED_HEADERS.length).setFontWeight("bold").setBackground("#0D9488").setFontColor("#FFFFFF");
+  return migratedRows.length;
+}
+
 function handleSubmitRecord(ss, postData) {
   const sheet = ss.getSheets()[0];
-
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow([
-      "記錄識別碼",
-      "填表時間",
-      "出勤單位",
-      "給藥日期",
-      "給藥時間",
-      "救護紀錄表單號",
-      "性別",
-      "年齡",
-      "適用條件",
-      "給藥劑量(mg)",
-      "剩餘銷毀劑量(mg)",
-      "給藥途徑",
-      "重複給藥",
-      "重複給藥備註",
-      "給藥前 VAS",
-      "給藥後半小時 VAS",
-      "VAS 改善幅度",
-      "副作用反應",
-      "其他副作用說明",
-      "給藥滿意度",
-      "病患簽名狀態",
-      "救護人員簽名狀態",
-      "主管銷毀簽核狀態",
-      "主管簽核時間",
-      "雲端 PDF 檔案連結"
-    ]);
-    sheet.getRange(1, 1, 1, 25).setFontWeight("bold").setBackground("#0D9488").setFontColor("#FFFFFF");
-  }
+  ensureAndMigrateSheet(sheet);
 
   const folder = getOrCreateFolder(FOLDER_NAME);
 
