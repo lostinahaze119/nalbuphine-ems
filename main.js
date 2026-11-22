@@ -1082,7 +1082,7 @@ document.addEventListener('DOMContentLoaded', () => {
         watermarkText = `僅供Nalbuphine止痛評估｜${formData.unit || '光明91'}｜單號:${formData.formNo || '未填'}｜${nowStamp}`;
       }
 
-      const sigDataUrl = activeSignaturePad.toDataURL('image/png', watermarkText);
+      const sigDataUrl = activeSignaturePad.toDataURL('image/jpeg', watermarkText);
       if (currentSigningType === 'patient') {
         formData.patientSignature = sigDataUrl;
         updateSignatureBoxUI('patientSigBox', sigDataUrl);

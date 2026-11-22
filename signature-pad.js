@@ -178,24 +178,35 @@ class TouchSignaturePad {
     return !pixelBuffer.some(color => color !== 0xffffffff);
   }
 
-  toDataURL(type = 'image/png', watermarkText = '') {
-    const maxDim = 640;
-    const w = this.canvas.width;
-    const h = this.canvas.height;
-    const scale = (w <= maxDim && h <= maxDim) ? 1 : Math.min(maxDim / w, maxDim / h);
+  toDataURL(type = 'image/jpeg', watermarkText = '') {
+    const renderExport = (maxDim, mime, quality) => {
+      const w = this.canvas.width;
+      const h = this.canvas.height;
+      const scale = (w <= maxDim && h <= maxDim) ? 1 : Math.min(maxDim / w, maxDim / h);
 
-    const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = Math.max(1, Math.round(w * scale));
-    exportCanvas.height = Math.max(1, Math.round(h * scale));
-    const exportCtx = exportCanvas.getContext('2d');
-    exportCtx.fillStyle = '#FFFFFF';
-    exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-    exportCtx.drawImage(this.canvas, 0, 0, exportCanvas.width, exportCanvas.height);
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = Math.max(1, Math.round(w * scale));
+      exportCanvas.height = Math.max(1, Math.round(h * scale));
+      const exportCtx = exportCanvas.getContext('2d');
+      exportCtx.fillStyle = '#FFFFFF';
+      exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+      exportCtx.drawImage(this.canvas, 0, 0, exportCanvas.width, exportCanvas.height);
 
-    if (watermarkText) {
-      this.applyWatermark(exportCtx, exportCanvas.width, exportCanvas.height, watermarkText);
+      if (watermarkText) {
+        this.applyWatermark(exportCtx, exportCanvas.width, exportCanvas.height, watermarkText);
+      }
+      return exportCanvas.toDataURL(mime, quality);
+    };
+
+    // 使用白底 JPEG 壓縮並加上尺寸保護，確保含浮水印也遠低於 Google 試算表 50,000 字元上限
+    let result = renderExport(500, 'image/jpeg', 0.82);
+    if (result.length > 38000) {
+      result = renderExport(420, 'image/jpeg', 0.68);
     }
-    return exportCanvas.toDataURL(type);
+    if (result.length > 38000) {
+      result = renderExport(340, 'image/jpeg', 0.55);
+    }
+    return result;
   }
 
   applyWatermark(ctx, width, height, text) {
