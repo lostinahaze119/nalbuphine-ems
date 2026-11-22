@@ -1456,15 +1456,37 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('Google 雲端設定已儲存！');
   });
 
-  document.getElementById('btnViewGasCode').addEventListener('click', () => {
+  const btnDirectCopyGas = document.getElementById('btnDirectCopyGas');
+  if (btnDirectCopyGas) {
+    btnDirectCopyGas.addEventListener('click', async () => {
+      let code = document.getElementById('gasCodeTextarea')?.value || '';
+      try {
+        const resp = await fetch(`gas_script.gs?_t=${Date.now()}`);
+        if (resp.ok) code = await resp.text();
+      } catch (e) {}
+      await navigator.clipboard.writeText(code);
+      showToast('✅ 已一鍵複製最新 gas_script.gs 到剪貼簿！');
+    });
+  }
+
+  document.getElementById('btnViewGasCode').addEventListener('click', async () => {
     settingsModal.classList.remove('open');
     gasCodeModal.classList.add('open');
+    const textarea = document.getElementById('gasCodeTextarea');
+    if (textarea) {
+      try {
+        const resp = await fetch(`gas_script.gs?_t=${Date.now()}`);
+        if (resp.ok) {
+          textarea.value = await resp.text();
+        }
+      } catch (e) {}
+    }
   });
 
   document.getElementById('btnCopyGasCode').addEventListener('click', () => {
     const code = document.getElementById('gasCodeTextarea').value;
     navigator.clipboard.writeText(code).then(() => {
-      showToast('已複製 GAS 後端腳本程式碼！');
+      showToast('已複製最新 gas_script.gs 程式碼！');
     });
   });
 

@@ -641,9 +641,14 @@
             <li>部署為「Web 應用程式」，存取權限設定為「任何人」。</li>
             <li>將產生的 Exec 網址複製貼回上方框中即可！</li>
           </ol>
-          <button type="button" id="btnViewGasCode" class="btn-inline" style="margin-top:12px; width:100%; background:var(--teal-dark);">
-            <i class="fas fa-code"></i> 檢視並複製一鍵 GAS 後端腳本
-          </button>
+          <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+            <button type="button" id="btnDirectCopyGas" class="btn-inline" style="flex:1; min-width:160px; background:#0D9488;">
+              <i class="fas fa-copy"></i> 一鍵複製最新 gas_script.gs
+            </button>
+            <button type="button" id="btnViewGasCode" class="btn-inline" style="flex:1; min-width:160px; background:var(--teal-dark);">
+              <i class="fas fa-code"></i> 檢視 GAS 腳本內容
+            </button>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
