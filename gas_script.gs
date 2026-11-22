@@ -82,7 +82,7 @@ function doGet(e) {
     if (params.action === "repairSheet") {
       const ss = getOrCreateSpreadsheet(SPREADSHEET_NAME);
       const sheet = ss.getSheets()[0];
-      const count = ensureAndMigrateSheet(sheet);
+      const count = ensureAndMigrateSheet(sheet, true);
       return jsonResponse({ result: "success", message: "試算表欄位與歷史資料對齊完成", rowsProcessed: count });
     }
     return ContentService.createTextOutput("Nalbuphine 止痛評估電子化系統 GAS Webhook 運作正常！");
@@ -97,10 +97,10 @@ function doGet(e) {
 function repairSheet() {
   const ss = getOrCreateSpreadsheet(SPREADSHEET_NAME);
   const sheet = ss.getSheets()[0];
-  ensureAndMigrateSheet(sheet);
+  ensureAndMigrateSheet(sheet, true);
 }
 
-function ensureAndMigrateSheet(sheet) {
+function ensureAndMigrateSheet(sheet, forceScanRows = false) {
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(EXPECTED_HEADERS);
     sheet.getRange(1, 1, 1, EXPECTED_HEADERS.length).setFontWeight("bold").setBackground("#0D9488").setFontColor("#FFFFFF");
@@ -119,7 +119,7 @@ function ensureAndMigrateSheet(sheet) {
       break;
     }
   }
-  if (headersMatch) return lastRow;
+  if (headersMatch && !forceScanRows) return lastRow;
 
   const isSigText = (val) => val === "已簽名" || val === "未簽名" || val === "因故無法簽名";
   const isHttp = (val) => String(val || "").indexOf("http") === 0;
@@ -127,21 +127,34 @@ function ensureAndMigrateSheet(sheet) {
   const migratedRows = [EXPECTED_HEADERS];
   for (let i = 1; i < allValues.length; i++) {
     const r = allValues[i];
-    const is25 = isHttp(r[24]) || isSigText(r[20]);
-    const is21 = !is25 && (isHttp(r[20]) || isSigText(r[18]));
-    const is19 = !is25 && !is21 && (isHttp(r[18]) || isSigText(r[16]));
-
-    if (is25) {
+    // 1. 已經是正確 25 欄（Y 欄為 PDF 網址）
+    if (isHttp(r[24])) {
       const row25 = r.slice(0, 25);
       while (row25.length < 25) row25.push("");
       migratedRows.push(row25);
-    } else if (is21) {
+    // 2. 曾被誤移位成 22 欄（V 欄為 PDF 網址，D 欄為單位如光明92）
+    } else if (isHttp(r[21]) && !r[2] && r[3]) {
+      migratedRows.push([
+        r[0], r[1], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[11],
+        "", r[12], "", "", r[13], r[14], r[15], r[16], r[17], r[18],
+        r[19], r[20], "", "", r[21]
+      ]);
+    // 3. 20 欄含出勤單位（T 欄 index 19 為 PDF 網址）
+    } else if (isHttp(r[19])) {
+      migratedRows.push([
+        r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9],
+        "", r[10], "", "", r[11], r[12], r[13], r[14], r[15], r[16],
+        r[17], r[18], "", "", r[19]
+      ]);
+    // 4. 21 欄無出勤單位（U 欄 index 20 為 PDF 網址）
+    } else if (isHttp(r[20]) || isSigText(r[18])) {
       migratedRows.push([
         r[0], r[1], "", r[2], r[3], r[4], r[5], r[6], r[7], r[8],
         "", r[9], r[10], r[11], r[12], r[13], r[14], r[15], r[16], r[17],
         r[18], r[19], "", "", r[20]
       ]);
-    } else if (is19) {
+    // 5. 19 欄無出勤單位無重複給藥（S 欄 index 18 為 PDF 網址）
+    } else if (isHttp(r[18]) || isSigText(r[16])) {
       migratedRows.push([
         r[0], r[1], "", r[2], r[3], r[4], r[5], r[6], r[7], r[8],
         "", r[9], "", "", r[10], r[11], r[12], r[13], r[14], r[15],
@@ -156,6 +169,11 @@ function ensureAndMigrateSheet(sheet) {
 
   sheet.getRange(1, 1, migratedRows.length, EXPECTED_HEADERS.length).setValues(migratedRows);
   sheet.getRange(1, 1, 1, EXPECTED_HEADERS.length).setFontWeight("bold").setBackground("#0D9488").setFontColor("#FFFFFF");
+  if (migratedRows.length > 1) {
+    sheet.getRange(2, 4, migratedRows.length - 1, 1).setNumberFormat("yyyy-mm-dd");
+    sheet.getRange(2, 5, migratedRows.length - 1, 1).setNumberFormat("hh:mm");
+    sheet.getRange(2, 6, migratedRows.length - 1, 1).setNumberFormat("@");
+  }
   return migratedRows.length;
 }
 
