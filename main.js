@@ -531,10 +531,36 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  const FORM_DRAFT_KEY = 'nalbuphine_form_draft';
+  let isDraftInitialized = false;
+
+  function saveFormDraft() {
+    if (!isDraftInitialized || editingRecordId) return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('signId') && urlParams.get('token')) return;
+      localStorage.setItem(FORM_DRAFT_KEY, JSON.stringify({
+        ...formData,
+        savedAt: Date.now()
+      }));
+    } catch (e) {}
+  }
+
+  function clearFormDraft() {
+    try { localStorage.removeItem(FORM_DRAFT_KEY); } catch (e) {}
+  }
+
   if (inputRepeatDoseRemark) {
     inputRepeatDoseRemark.addEventListener('input', () => {
       formData.repeatDoseRemark = inputRepeatDoseRemark.value.trim();
       validateFormStatus();
+    });
+  }
+
+  if (sideEffectOtherInput) {
+    sideEffectOtherInput.addEventListener('input', () => {
+      formData.sideEffectOther = sideEffectOtherInput.value.trim();
+      saveFormDraft();
     });
   }
 
@@ -648,8 +674,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 時間更新為現在
     initDateTime();
 
+    clearFormDraft();
     validateFormStatus();
-    showToast('已建立新案件 (已保留出勤單位，簽名已重置)', 'success');
+    showToast('已建立新案件 (已保留出勤單位，簽名與草稿已重置)', 'success');
   }
 
   // 性別 Toggle
@@ -1465,6 +1492,8 @@ document.addEventListener('DOMContentLoaded', () => {
         btnPreview.innerHTML = `<i class="fas fa-lock"></i> 請完成必填欄位與手寫簽名`;
       }
     }
+
+    saveFormDraft();
   }
 
   // Initial validation check
@@ -1834,6 +1863,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (result.success) {
         clearPendingRemoteSign();
+        clearFormDraft();
         showToast(isUpdate ? '🎉 已成功覆蓋更新雲端與離線紀錄！' : (result.mode === 'cloud' ? '🎉 已成功上傳歸檔至 Google 雲端資料夾！' : result.message));
         
         editingRecordId = null;
@@ -2763,10 +2793,149 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('focus', handleResumeCheck);
   window.addEventListener('pageshow', handleResumeCheck);
 
+  function restoreFormDraft() {
+    try {
+      const raw = localStorage.getItem(FORM_DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (!d || typeof d !== 'object') return;
+
+      if (d.unit && unitInput) { formData.unit = d.unit; unitInput.value = d.unit; }
+      if (d.date && dateInput) dateInput.value = d.date;
+      if (d.time && timeInput) timeInput.value = d.time;
+      updateDateTimeState();
+
+      if (d.formNo !== undefined && formNoInput) { formData.formNo = d.formNo; formNoInput.value = d.formNo; }
+      if (d.age !== undefined && ageInput) { formData.age = d.age; ageInput.value = d.age; }
+
+      if (d.gender) {
+        formData.gender = d.gender;
+        document.querySelectorAll('#genderGroup .btn-toggle-option').forEach(b => {
+          b.classList.toggle('active', b.dataset.value === d.gender);
+        });
+      }
+
+      if (Array.isArray(d.conditions)) {
+        formData.conditions = d.conditions;
+        document.querySelectorAll('.condition-card').forEach(card => {
+          const cb = card.querySelector('input[type="checkbox"]');
+          cb.checked = formData.conditions.includes(cb.value);
+          card.classList.toggle('selected', cb.checked);
+        });
+      }
+
+      if (d.dosage && dosageInput) {
+        formData.dosage = d.dosage;
+        dosageInput.value = d.dosage;
+        if (dosageVolumeEq) {
+          dosageVolumeEq.textContent = `＝ ${(parseFloat(formData.dosage) / 10).toFixed(1).replace(/\.0$/, '')} ml`;
+        }
+        updateDoseChipsActive();
+      }
+      if (d.wasteDosage !== undefined && wasteDosageInput) {
+        formData.wasteDosage = String(d.wasteDosage);
+        wasteDosageInput.value = formData.wasteDosage;
+      }
+
+      if (d.route) {
+        formData.route = d.route;
+        document.querySelectorAll('#routeGroup .btn-toggle-option').forEach(b => {
+          b.classList.toggle('active', b.dataset.value === d.route);
+        });
+      }
+
+      if (d.repeatDose) {
+        formData.repeatDose = d.repeatDose;
+        formData.repeatDoseRemark = d.repeatDoseRemark || '';
+        repeatDoseOptions.forEach(b => b.classList.toggle('active', b.dataset.value === d.repeatDose));
+        if (repeatDoseRemarkContainer) repeatDoseRemarkContainer.style.display = d.repeatDose === '是' ? 'block' : 'none';
+        if (inputRepeatDoseRemark) inputRepeatDoseRemark.value = formData.repeatDoseRemark;
+      }
+
+      if (d.vasPre !== undefined) formData.vasPre = d.vasPre;
+      if (d.vasPost !== undefined) formData.vasPost = d.vasPost;
+      formData.vasUnconscious = !!d.vasUnconscious;
+      if (chkVasUnconscious) chkVasUnconscious.checked = formData.vasUnconscious;
+      setupVasScale('vasPreContainer', formData.vasPre, (score) => { formData.vasPre = score; });
+      setupVasScale('vasPostContainer', formData.vasPost, (score) => { formData.vasPost = score; });
+      updateVasUnconsciousUI();
+
+      if (Array.isArray(d.sideEffects)) {
+        formData.sideEffects = d.sideEffects;
+        document.querySelectorAll('.side-effect-card').forEach(card => {
+          const cb = card.querySelector('input[type="checkbox"]');
+          cb.checked = formData.sideEffects.includes(cb.value);
+          card.classList.toggle('selected', cb.checked);
+        });
+      }
+      if (d.sideEffectOther) {
+        formData.sideEffectOther = d.sideEffectOther;
+        sideEffectOtherInput.value = d.sideEffectOther;
+        sideEffectOtherInput.style.display = 'block';
+      }
+
+      if (d.satisfaction) formData.satisfaction = d.satisfaction;
+      formData.satisfactionUnconscious = !!d.satisfactionUnconscious;
+      if (chkSatisfactionUnconscious) chkSatisfactionUnconscious.checked = formData.satisfactionUnconscious;
+      document.querySelectorAll('.satisfaction-card').forEach(card => {
+        card.classList.toggle('active', card.dataset.value === formData.satisfaction);
+      });
+      updateSatisfactionUnconsciousUI();
+
+      formData.patientUnableToSign = !!d.patientUnableToSign;
+      if (chkPatientUnableToSign) chkPatientUnableToSign.checked = formData.patientUnableToSign;
+      if (lblUnableSign) lblUnableSign.classList.toggle('checked', formData.patientUnableToSign);
+      if (d.patientSignature) {
+        formData.patientSignature = d.patientSignature;
+        updateSignatureBoxUI('patientSigBox', d.patientSignature);
+      } else if (formData.patientUnableToSign) {
+        updatePatientUnableToSignUI();
+      }
+
+      if (d.emtSignature) {
+        formData.emtSignature = d.emtSignature;
+        updateSignatureBoxUI('emtSigBox', d.emtSignature);
+      }
+
+      formData.supervisorSignature = d.supervisorSignature || '';
+      formData.supervisorSignedAt = d.supervisorSignedAt || '';
+      formData.supervisorSignMode = d.supervisorSignMode || '';
+      formData.remoteSignId = d.remoteSignId || '';
+      formData.remoteSignToken = d.remoteSignToken || '';
+
+      if (formData.isLockedForSign || d.isLockedForSign || formData.supervisorSignature || (formData.remoteSignId && formData.remoteSignToken)) {
+        setCaseFieldsLocked(true);
+      }
+      if (formData.remoteSignId && formData.remoteSignToken && !formData.supervisorSignature) {
+        const baseUrl = window.location.href.split('?')[0];
+        const shareUrl = `${baseUrl}?signId=${encodeURIComponent(formData.remoteSignId)}&token=${encodeURIComponent(formData.remoteSignToken)}`;
+        if (remoteSignUrlInput) remoteSignUrlInput.value = shareUrl;
+        if (remoteSignLinkBox) remoteSignLinkBox.style.display = 'block';
+        if (btnCheckRemoteSignNow) btnCheckRemoteSignNow.style.display = 'inline-flex';
+        checkRemoteSignStatusOnce(true);
+        startRemoteSignPolling();
+      }
+
+      updateSupervisorSignUI();
+      validateFormStatus();
+
+      if (d.formNo || d.age || d.patientSignature || d.emtSignature || d.supervisorSignature) {
+        showToast('📋 已自動恢復上次未送出的填寫草稿', 'success');
+      }
+    } catch (e) {}
+  }
+
+  window.addEventListener('pagehide', saveFormDraft);
+  window.addEventListener('beforeunload', saveFormDraft);
+
   // Initialize Barcode Scanner & Tablet Smart Tools (or Remote Supervisor Mode)
   initSupervisorRemoteMode().then((isRemoteMode) => {
     if (!isRemoteMode) {
-      restorePendingRemoteSign();
+      restoreFormDraft();
+      isDraftInitialized = true;
+      if (!formData.remoteSignId) {
+        restorePendingRemoteSign();
+      }
       initBarcodeScanner();
       initTabletSmartTools();
     }
